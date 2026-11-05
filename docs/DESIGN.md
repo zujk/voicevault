@@ -3,7 +3,7 @@
 App Android per voice training MTF femminilizzante durante il commute in auto.
 Documento di studio: **nessun codice scritto**, da validare prima dell'implementazione.
 
-> Rev. 5 — solo drone: il sidetone è rinviato. Fase 0 assorbita nella Fase 1.
+> Rev. 6 — Fase 1 implementata. Due scostamenti tecnici annotati in §8 e §7.
 
 ---
 
@@ -186,8 +186,9 @@ propone pausa se rileva spinta sostenuta (volume alto + pitch alto a lungo).
 - **Proxy del peso vocale**: *spectral tilt* (energia <1 kHz vs >1 kHz) + HNR +
   H1-H2. Correla bene con la percezione di voce densa/ronzante. Calibrato sulla tua
   voce nelle prime sessioni, non su soglie assolute.
-- **Audio a bassa latenza**: Oboe/AAudio per drone, sonificazione e sidetone, su
-  thread audio dedicato.
+- **Audio del drone**: `AudioTrack` in `PERFORMANCE_MODE_LOW_LATENCY` su thread
+  dedicato. **Scostamento dalla rev. 1**: niente Oboe/NDK. Serviva per il sidetone,
+  che e' rinviato; il drone e' pura riproduzione e non ha vincoli di latenza.
 - **Background**: foreground service con `FOREGROUND_SERVICE_MICROPHONE`
   (obbligatorio da Android 14), notifica persistente, schermo che può spegnersi.
 - **Stack**: Kotlin + Jetpack Compose, single module, minSdk 29. Room per dati.
@@ -221,8 +222,11 @@ propone pausa se rileva spinta sostenuta (volume alto + pitch alto a lungo).
 | **Opus 48 kbps mono (proposta)** | **~11 MB** | **~4 GB** |
 | Opus 64 kbps mono | ~14 MB | ~5,2 GB |
 
-Proposta: **Opus 48 kbps mono**. Con un microfono a 3 cm la voce è ottima e resta
-riascoltabile e rianalizzabile in futuro. L'app mostra lo spazio occupato e avvisa
+Proposta iniziale: Opus 48 kbps mono. **Scostamento in implementazione: AAC-LC a
+64 kbps mono in `.m4a`**, perche' l'encoder Opus di Android non e' garantito su
+tutti i dispositivi mentre AAC-LC c'e' sempre. Costo reale quindi ~14 MB al giorno
+e ~5 GB all'anno, la riga in fondo alla tabella. Con un microfono a 3 cm la voce e'
+ottima e resta riascoltabile e rianalizzabile in futuro. L'app mostra lo spazio occupato e avvisa
 sopra una soglia che decidi tu, senza mai cancellare da sola.
 
 **Il vero rischio di "per sempre" non è lo spazio: è perdere il telefono.** E qui
@@ -269,7 +273,7 @@ Senza sidetone **la Fase 0 come app separata non serve più**: i due rischi resi
 (processing del DAC, qualità del pitch in marcia) si misurano direttamente dentro
 l'MVP con una schermata di diagnostica, invece di scrivere un'app usa-e-getta.
 
-**Fase 1 — MVP (prima cosa da costruire).**
+**Fase 1 — MVP. Scritta, mai compilata ne' provata su un telefono.**
 - registrazione dal mic USB-C in foreground service, Opus 48 kbps mono;
 - **drone di riferimento** generato con Oboe, mono duplicato sui due canali;
 - pitch detection YIN con soglia di confidenza;

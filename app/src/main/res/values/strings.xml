@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">VoiceVault</string>
+    <string name="notif_channel_session">Sessione in corso</string>
+</resources>
