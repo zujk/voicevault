@@ -3,7 +3,7 @@
 App Android per voice training MTF femminilizzante durante il commute in auto.
 Documento di studio: **nessun codice scritto**, da validare prima dell'implementazione.
 
-> Rev. 3 — aggiornato dopo i chiarimenti su telefono, cuffie e sorgente musicale.
+> Rev. 4 — la musica esce dallo scope: l'app non la gestisce.
 
 ---
 
@@ -16,7 +16,7 @@ Documento di studio: **nessun codice scritto**, da validare prima dell'implement
 | Hardware | telefono su supporto specchietto, **landscape** |
 | Telefono | **Nothing Phone 3a** (Android 15 / Nothing OS 3, aggiornabile) |
 | Audio in/out | **cuffie USB-C economiche con microfono inline, un solo auricolare indossato** |
-| Musica | sì, quasi sempre, **dallo speaker del telefono, nell'aria** — serve a disinibirsi e a parlare sopra senza imbarazzo |
+| Musica | **fuori scope**: la gestisci tu con le tue app, VoiceVault non la riproduce |
 | Archivio | si conserva tutto, senza cancellazione automatica |
 | Mani | sul volante |
 | Occhi | sulla strada |
@@ -67,53 +67,31 @@ soglia, il sidetone si disattiva e si tiene solo il drone. È il test #1 della F
 
 ---
 
-## 2bis. La musica dallo speaker: due conflitti reali
+## 2bis. La musica (fuori scope)
 
-La musica non è un accessorio: **è uno strumento di lavoro.** Serve a disinibirsi e
-a parlare sopra senza imbarazzo, e per funzionare così deve stare **nell'aria, non
-nell'orecchio**. Metterla in cuffia la neutralizza. Il design la protegge invece di
-spostarla. Però crea due problemi concreti.
+Decisione: **VoiceVault non diventa un music player.** Ricadute, tutte positive
+tranne una:
 
-### Conflitto 1 — Android non manda l'audio in due posti (per default)
-Appena colleghi cuffie USB-C, Android instrada **tutta** l'uscita alle cuffie: lo
-speaker tace e la musica di Spotify finisce nell'orecchio. Non si può forzare
-un'altra app sullo speaker dall'esterno.
+- **Cade il rischio principale della rev. 3.** Con le cuffie collegate la musica
+  suona in cuffia, non nell'aria, quindi **non entra nel microfono**: il pitch
+  detector non ha più f0 estranee a cui agganciarsi. Niente AEC da scrivere, niente
+  gate acrobatici.
+- **Cade il vincolo dei file locali**, quindi resta Spotify e resta "nessun permesso
+  INTERNET" nel manifest. Si tiene tutto.
+- **Niente routing per-player da verificare**: le cuffie USB sono l'unica uscita e
+  basta. Il test #3 della Fase 0 sparisce.
+- **L'unica cosa che perdi è l'effetto disinibente** della musica nell'aria, perché
+  finisce nell'orecchio insieme al drone invece di stare nell'ambiente.
 
-Si risolve solo se **la musica la riproduce VoiceVault**: un `AudioTrack`/`MediaPlayer`
-proprio, con `setPreferredDevice(TYPE_BUILTIN_SPEAKER)`, mentre drone, prompt e
-sidetone vanno su `TYPE_USB_HEADSET`. Il routing per singolo player è API pubblica,
-ma le implementazioni OEM variano: **da verificare sul Nothing Phone 3a.** Test #3
-della Fase 0.
+Quello che l'app fa, e sono poche righe: richiede l'audio focus in modalità
+`TRANSIENT_MAY_DUCK`, così qualunque cosa stia suonando **si abbassa da sola**
+durante i prompt e gli esercizi e torna su nelle pause. Funziona con Spotify o con
+qualsiasi altro player, senza integrazioni.
 
-Il prezzo: senza permesso INTERNET non c'è Spotify, quindi la musica deve essere
-**file locali sul telefono**. È un vincolo vero, da accettare in cambio del fatto
-che l'app non possa spedire niente da nessuna parte. (Se non è accettabile, la
-seconda scelta è musica in cuffia a volume basso — ma perde l'effetto disinibente,
-che è il motivo per cui c'è.)
-
-### Conflitto 2 — la musica entra nella registrazione, ed è il nuovo rischio #1
-La musica non è rumore qualsiasi: ha f0 forti e stabili, basso e armonie. Un pitch
-detector su "voce + musica" non si confonde un po', **si aggancia alla musica**.
-È un problema peggiore del rumore di cabina, che almeno è a banda larga e filtrabile.
-
-Tre difese, in ordine:
-1. **Vantaggio di distanza.** Il mic inline è a ~3 cm dalla bocca, lo speaker a
-   ~40 cm e orientato altrove: la voce arriva ~20 dB più forte della musica. Da sola
-   questa asimmetria copre buona parte del problema.
-2. **Cancellazione con riferimento noto.** Se la musica la riproduce l'app, l'app
-   *sa* cosa sta uscendo dallo speaker e può sottrarlo dal segnale registrato (AEC
-   adattivo, NLMS). È esattamente lo scenario per cui l'AEC esiste. Secondo motivo
-   per cui conviene che il player sia interno.
-3. **Gate di energia + armonicità.** I frame in cui la voce non domina chiaramente
-   vengono scartati invece di produrre numeri inventati.
-
-### Effetto Lombard: la musica ti fa spingere
-Parlare sopra un suono forte alza automaticamente volume e sforzo vocale — che è
-l'opposto della leggerezza che stai cercando. Quindi il volume della musica diventa
-**un parametro della sessione**, non un'impostazione fissa: alto nel riscaldamento e
-negli esercizi 1-2 (dove serve disinibire), basso o assente nell'esercizio 5 — il
-carryover al parlato, dove le metriche contano e dove devi sentire la tua voce vera.
-Così la musica fa il suo lavoro psicologico senza falsare né la voce né i dati.
+Se più avanti l'imbarazzo torna a essere un ostacolo, la sostituzione naturale non è
+la musica ma un **rumore di mascheramento tenue in cuffia**: riduce l'ascolto di sé
+con lo stesso effetto psicologico, senza interferire col drone né col microfono.
+Una riga di codice, da provare quando serve.
 
 ---
 
@@ -220,20 +198,17 @@ propone pausa se rileva spinta sostenuta (volume alto + pitch alto a lungo).
 2. **Processing dentro il DAC delle cuffie.** Alcuni headset USB-C fanno AGC/noise
    suppression nel loro chip, fuori dal controllo di Android. Non è aggirabile: se
    succede, le metriche di peso vanno calibrate su quel comportamento. Test #2.
-3. **Routing per-player sul Nothing Phone 3a**: musica sullo speaker + tutto il
-   resto sulle cuffie USB, dallo stesso processo. API pubblica, implementazione OEM
-   da verificare. Test #3.
-4. **Cuffie economiche, modello sconosciuto.** È la variabile meno controllabile:
+3. **Cuffie economiche, modello sconosciuto.** È la variabile meno controllabile:
    se il loro chip fa AGC o noise suppression, le metriche di peso vocale vanno
    calibrate su quel comportamento perché non è disattivabile. Se lo spike mostra
    processing aggressivo o latenza alta, la spesa più utile del progetto è un
    headset USB-C decente — non più software.
-5. **Navigatore**: Maps deve poter parlare sopra tutto, con pausa e ripresa pulita
+4. **Navigatore**: Maps deve poter parlare sopra tutto, con pausa e ripresa pulita
    della sessione.
 4. **Alimentazione**: la USB-C è occupata dalle cuffie, quindi non carichi mentre ti
    alleni. 30 min/giorno di registrazione + audio sono gestibili, ma se il supporto
    specchietto prevedeva la ricarica, serve un adattatore con passthrough.
-6. **Rumore residuo**: con il mic a 3 cm resta solo il caso limite (finestrino
+5. **Rumore residuo**: con il mic a 3 cm resta solo il caso limite (finestrino
    aperto, autostrada). Si logga la qualità del segnale e si marca la sessione, invece
    di presentare numeri inaffidabili come se fossero buoni.
 
@@ -293,14 +268,14 @@ zona target, indice di peso medio, qualità del segnale, durata.
 
 ## 11. Fasi
 
-**Fase 0 — spike di rischio (mezza giornata).** App minima che risponde a quattro
-domande, in ordine di importanza:
-1. **Routing**: si riesce a mandare musica allo speaker e drone/voce alle cuffie USB
-   nello stesso momento? Se no, cade l'impianto musica-nell'aria e si ridiscute.
-2. **Latenza** andata-e-ritorno sulle cuffie: sotto 30 ms → sidetone possibile.
-3. **Processing del DAC**: le cuffie economiche alterano guadagno e spettro?
-4. **Pitch tracking con musica accesa**: quanto regge il vantaggio di distanza, e
-   quanto aggiunge l'AEC con riferimento noto.
+**Fase 0 — spike di rischio (un paio d'ore).** App minima che risponde a tre
+domande sulle tue cuffie economiche:
+1. **Latenza** andata-e-ritorno: sotto 30 ms → sidetone possibile, sopra → si tiene
+   solo il drone.
+2. **Processing del DAC**: alterano guadagno e spettro? Decide la calibrazione delle
+   metriche di peso.
+3. **Qualità del pitch tracking in auto in marcia**, con il mic a 3 cm e senza musica
+   addosso: deve essere la parte facile, va confermato.
 
 **Fase 1 — MVP usabile.** Sessione guidata (TTS) con 3 esercizi, drone di
 riferimento, schermo glanceable, registrazione, calendario con pallini.
@@ -315,7 +290,6 @@ lock biometrico, gestione spazio.
 
 ## 12. Domande ancora aperte
 
-1. Musica da file locali gestiti dall'app è accettabile, o è un deal-breaker
-   rispetto a Spotify? (decide se si tiene "niente INTERNET" o si rivede)
-2. Hai già un pitch di riferimento/target, o deve stabilirlo l'app nelle prime sessioni?
-3. Discrezione: nome e icona neutri? lock biometrico all'apertura?
+1. Hai già un pitch di riferimento/target, o deve stabilirlo l'app nelle prime
+   sessioni? (è l'unica cosa che serve per iniziare la Fase 1)
+2. Discrezione: nome e icona neutri? lock biometrico all'apertura?
