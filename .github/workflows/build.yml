@@ -17,10 +17,17 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Installa cmdline-tools e accetta le licenze, cosi' AGP puo' scaricare
-      # da solo la platform che gli serve se l'immagine del runner non l'ha.
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
+      # L'immagine del runner ha gia' l'SDK: serve solo accettare le licenze e
+      # assicurarsi che ci siano la platform e i build-tools che usa il progetto.
+      # Non si usa android-actions/setup-android perche' prova a installare il
+      # pacchetto "tools", che Google ha ritirato.
+      - name: Platform e build-tools
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMANAGER="$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager | head -1)"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
