@@ -3,7 +3,7 @@
 App Android per voice training MTF femminilizzante durante il commute in auto.
 Documento di studio: **nessun codice scritto**, da validare prima dell'implementazione.
 
-> Rev. 4 — la musica esce dallo scope: l'app non la gestisce.
+> Rev. 5 — solo drone: il sidetone è rinviato. Fase 0 assorbita nella Fase 1.
 
 ---
 
@@ -47,23 +47,25 @@ Il passaggio da "microfono del telefono a 50 cm + Bluetooth dell'auto" a
 In compenso arrivano **due questioni nuove**, una delle quali è l'occasione più
 interessante di tutto il progetto.
 
-### 2a. L'effetto di occlusione (problema)
+### 2a. L'effetto di occlusione (problema noto, accettato per ora)
 Con un auricolare in-ear senti la tua voce amplificata per conduzione ossea, con i
-bassi esaltati. Percepisci la tua voce **più pesante di com'è davvero**. Per un
-training basato esattamente sulla percezione del peso vocale, è una distorsione
-sistematica: rischi di correggere un peso che non c'è, o di non sentire quello che c'è.
+bassi esaltati: la percepisci **più pesante di com'è davvero**. Per un training
+basato sulla percezione del peso vocale è una distorsione sistematica.
 
-### 2b. Il sidetone (soluzione, e vero valore aggiunto)
-Si reinvia il microfono nell'auricolare a basso volume e bassa latenza: senti la
-tua voce **come la sente il microfono**, non come la senti dall'interno del cranio.
-Per il voice training vale moltissimo — è il motivo per cui le cantanti usano gli
-in-ear monitor. Diventa possibile solo perché hai scelto le cuffie.
+### 2b. Il sidetone (rinviato)
+La soluzione sarebbe reinviare il microfono nell'auricolare a basso volume, così
+senti la tua voce come la sente il microfono invece che da dentro il cranio — il
+principio degli in-ear monitor. Richiede però **latenza sotto i 25-30 ms**: sopra
+quella soglia diventa un eco che destabilizza attivamente il parlato, quindi è
+meglio assente che in ritardo.
 
-Vincolo tecnico duro: serve **sotto i 25-30 ms** di latenza andata-e-ritorno.
-Sopra, diventa un eco che destabilizza la voce ed è peggio di niente. Si fa con
-Oboe/AAudio in low-latency mode, ma su USB Audio Class la latenza varia col
-dispositivo: **va misurata, non assunta.** Se sul tuo setup non si scende sotto
-soglia, il sidetone si disattiva e si tiene solo il drone. È il test #1 della Fase 0.
+**Decisione: fuori dalla v1.** Si parte col solo drone. Il sidetone resta in Fase 3,
+da valutare quando il resto funziona e con cuffie di cui si conosce la latenza.
+
+Mitigazioni intanto, entrambe gratuite:
+- tenere l'auricolare **appoggiato invece che ben infilato** riduce l'occlusione;
+- il **riascolto della registrazione a motore spento** ricalibra la percezione sul
+  suono vero, ed è già previsto nella review post-sessione.
 
 ---
 
@@ -120,8 +122,6 @@ Una riga di codice, da provare quando serve.
 - **Sonificazione del peso vocale**: un proxy del peso (§7) pilota un filtro sul
   drone: voce pesante → drone ruvido; voce leggera → drone pulito. Impari a cercare
   il suono leggero a orecchie.
-- **Sidetone** (se la latenza lo permette, §2b): la tua voce reale, a basso volume,
-  sotto il drone.
 - **Conferme brevi**: tick discreto quando resti in zona target per 2 s. Nessuna
   voce che commenta in continuo: distrae e stufa.
 - Lo schermo replica la stessa informazione in colore (ambra = pesante, verde-azzurro
@@ -194,21 +194,18 @@ propone pausa se rileva spinta sostenuta (volume alto + pitch alto a lungo).
   Nessuna libreria cloud, nessuna analytics.
 
 ### Punti ancora aperti
-1. **Latenza USB Audio Class** → decide se il sidetone è possibile (§2b). Test #1.
-2. **Processing dentro il DAC delle cuffie.** Alcuni headset USB-C fanno AGC/noise
-   suppression nel loro chip, fuori dal controllo di Android. Non è aggirabile: se
-   succede, le metriche di peso vanno calibrate su quel comportamento. Test #2.
-3. **Cuffie economiche, modello sconosciuto.** È la variabile meno controllabile:
-   se il loro chip fa AGC o noise suppression, le metriche di peso vocale vanno
-   calibrate su quel comportamento perché non è disattivabile. Se lo spike mostra
-   processing aggressivo o latenza alta, la spesa più utile del progetto è un
-   headset USB-C decente — non più software.
-4. **Navigatore**: Maps deve poter parlare sopra tutto, con pausa e ripresa pulita
+1. **Processing dentro il DAC delle cuffie.** Cuffie economiche di modello
+   sconosciuto: è la variabile meno controllabile. Se il loro chip fa AGC o noise
+   suppression, non è disattivabile dall'app e le metriche di peso vanno calibrate
+   su quel comportamento. Se risultasse aggressivo, la spesa più utile del progetto
+   è un headset USB-C decente, non più software. Si misura dalla schermata di
+   diagnostica (§11).
+2. **Navigatore**: Maps deve poter parlare sopra tutto, con pausa e ripresa pulita
    della sessione.
 4. **Alimentazione**: la USB-C è occupata dalle cuffie, quindi non carichi mentre ti
    alleni. 30 min/giorno di registrazione + audio sono gestibili, ma se il supporto
    specchietto prevedeva la ricarica, serve un adattatore con passthrough.
-5. **Rumore residuo**: con il mic a 3 cm resta solo il caso limite (finestrino
+3. **Rumore residuo**: con il mic a 3 cm resta solo il caso limite (finestrino
    aperto, autostrada). Si logga la qualità del segnale e si marca la sessione, invece
    di presentare numeri inaffidabili come se fossero buoni.
 
@@ -268,28 +265,32 @@ zona target, indice di peso medio, qualità del segnale, durata.
 
 ## 11. Fasi
 
-**Fase 0 — spike di rischio (un paio d'ore).** App minima che risponde a tre
-domande sulle tue cuffie economiche:
-1. **Latenza** andata-e-ritorno: sotto 30 ms → sidetone possibile, sopra → si tiene
-   solo il drone.
-2. **Processing del DAC**: alterano guadagno e spettro? Decide la calibrazione delle
-   metriche di peso.
-3. **Qualità del pitch tracking in auto in marcia**, con il mic a 3 cm e senza musica
-   addosso: deve essere la parte facile, va confermato.
+Senza sidetone **la Fase 0 come app separata non serve più**: i due rischi residui
+(processing del DAC, qualità del pitch in marcia) si misurano direttamente dentro
+l'MVP con una schermata di diagnostica, invece di scrivere un'app usa-e-getta.
 
-**Fase 1 — MVP usabile.** Sessione guidata (TTS) con 3 esercizi, drone di
-riferimento, schermo glanceable, registrazione, calendario con pallini.
+**Fase 1 — MVP (prima cosa da costruire).**
+- registrazione dal mic USB-C in foreground service, Opus 48 kbps mono;
+- **drone di riferimento** generato con Oboe, mono duplicato sui due canali;
+- pitch detection YIN con soglia di confidenza;
+- sessione guidata via TTS con gli esercizi 0, 1, 2 e 5;
+- schermo landscape glanceable, dark, tap = avanti / long press = stop;
+- calendario mensile con i pallini e i minuti;
+- **schermata di diagnostica**: livelli, f0 in tempo reale, qualità del segnale,
+  verifica del processing del DAC.
 
-**Fase 2 — feedback fine.** Sidetone (se la Fase 0 lo permette), sonificazione del
-peso, tutti e 5 gli esercizi, programmi A/B, review post-sessione con grafico.
+**Fase 2 — feedback fine.** Sonificazione del peso vocale sul drone, esercizi 3 e 4,
+programmi A/B alternati, review post-sessione con grafico.
 
-**Fase 3 — rifiniture.** Insight, auto-start su collegamento cuffie, export/backup,
-lock biometrico, gestione spazio.
+**Fase 3 — rifiniture.** Insight, auto-start al collegamento delle cuffie,
+export/backup, lock biometrico, gestione spazio. **Sidetone**, se a quel punto ha
+senso e la latenza lo consente.
 
 ---
 
 ## 12. Domande ancora aperte
 
-1. Hai già un pitch di riferimento/target, o deve stabilirlo l'app nelle prime
-   sessioni? (è l'unica cosa che serve per iniziare la Fase 1)
+1. **Pitch target**: deciso che lo misura l'app. Le prime 2-3 sessioni girano in
+   modalità calibrazione, registrano la tua zona comoda e tarano il drone su quella,
+   invece di partire da un numero preso da una tabella.
 2. Discrezione: nome e icona neutri? lock biometrico all'apertura?
