@@ -104,9 +104,13 @@ fun SessionScreen(state: SessionUiState) {
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "tap = avanti   ·   tieni premuto = stop",
+                    text = if (state.examplePlaying) {
+                        "esempio in corso   ·   un tap lo interrompe e passa avanti"
+                    } else {
+                        "tap = avanti   ·   tieni premuto = stop"
+                    },
                     style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                    color = VV.Target,
+                    color = if (state.examplePlaying) VV.Light else VV.Target,
                 )
             }
 

@@ -21,5 +21,7 @@ data class SessionUiState(
     val tiltDb: Float? = null,
     /** 0..1, aggiornata durante la sessione. Bassa = segnale sporco. */
     val signalQuality: Float = 1f,
+    /** Vero mentre suona l'esempio della lezione: lo schermo lo dice. */
+    val examplePlaying: Boolean = false,
     val finishedSessionId: Long? = null,
 )

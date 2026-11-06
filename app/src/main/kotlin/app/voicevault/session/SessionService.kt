@@ -230,7 +230,11 @@ class SessionService : Service() {
                     // Il drone tace durante l'esempio: l'esempio ha dentro le sue
                     // note, e due altezze insieme non si capirebbero.
                     droneEngine.setGain(0f)
-                    examples?.play(exercise.exampleRes) { droneEngine.setGain(droneGain) }
+                    _state.value = _state.value.copy(examplePlaying = true)
+                    examples?.play(exercise.exampleRes) {
+                        droneEngine.setGain(droneGain)
+                        _state.value = _state.value.copy(examplePlaying = false)
+                    }
                 } else {
                     exercise.spoken?.let { speaker?.interruptWith(it) }
                 }
@@ -252,6 +256,7 @@ class SessionService : Service() {
 
                 // L'esempio non sopravvive all'esercizio, nemmeno se lo salti.
                 examples?.stop()
+                _state.value = _state.value.copy(examplePlaying = false)
 
                 val segmentEnd = System.currentTimeMillis() - sessionStartMs
                 val exerciseSummary = acc.summary(targetHz * (ratio ?: 1f))
