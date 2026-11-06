@@ -59,7 +59,10 @@ fun CalendarScreen(onBack: () -> Unit) {
     val recent by dao.recent(30).collectAsState(emptyList())
 
     val byDay = remember(counts) { counts.associateBy { it.dayKey } }
-    val insights = remember(recent) { Insights.forSessions(recent) }
+    val settings by app.settings.state.collectAsState()
+    val insights = remember(recent, settings.targetHz) {
+        Insights.forSessions(recent, settings.targetHz)
+    }
     val streak = remember(recent) { currentStreak(recent.map { it.dayKey }.toSet()) }
     val monthMinutes = counts.sumOf { it.totalMs } / 60_000L
 

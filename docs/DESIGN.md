@@ -3,7 +3,7 @@
 App Android per voice training MTF femminilizzante durante il commute in auto.
 Documento di studio: **nessun codice scritto**, da validare prima dell'implementazione.
 
-> Rev. 8 — la calibrazione scende da una sessione di 6 minuti a 90 secondi in testa alla prima.
+> Rev. 9 — calibrazione documentata per intero, e si può ricalibrare.
 
 ---
 
@@ -249,6 +249,65 @@ caricherebbe l'archivio su Google Drive, cioè la tua voce su un server. Propost
 `allowBackup=false` + archivio in una cartella visibile (`Documents/VoiceVault/`)
 così lo copi via cavo quando vuoi, più una funzione *Esporta* che prepara un unico
 zip. Backup consapevole e manuale invece che automatico e invisibile.
+
+---
+
+## 8bis. Calibrazione
+
+Decide **una sola cifra**: la frequenza del drone. Da lì dipende tutto, perché il
+drone è il bersaglio che si cerca a orecchio. Troppo in alto e lo si inseguirebbe
+spingendo — l'errore contro cui la lezione mette in guardia — troppo in basso e
+non allena niente.
+
+### Cosa misura
+Due esercizi in testa alla sessione, **con il drone spento**: non ha senso dare una
+nota mentre si misura dove sta la voce.
+
+| Esercizio | Durata | Grandezza estratta |
+|---|---|---|
+| "La tua voce" | 40 s | **mediana** di f0 nel parlato normale |
+| "Dove arrivi" | 50 s | **novantesimo percentile** di f0 nelle scivolate = tetto comodo |
+
+Il p90 e non il massimo: un singolo strillo o un falso positivo del rilevatore non
+devono spostare la misura. Conta come voce solo un frame sopra -48 dB **e** con
+confidenza ≥ 0,55; l'analisi gira a ~43 frame al secondo.
+
+### Il calcolo
+```
+target = mediana + 0,45 × (tetto comodo − mediana)
+```
+bloccato fra 120 e 260 Hz. Con mediana 130 e tetto 200 il target è 161 Hz: non 200,
+che farebbe spingere ogni volta, e non 130, che è dove si è già. **Il 45% è una
+scelta di progetto, non un dato di letteratura.**
+
+### Cosa cambia nel programma
+| Dove | Uso |
+|---|---|
+| Riscaldamento, hum e scivolata, nel parlato | drone sul target |
+| Pesante pesante leggero | drone a **1,5 × target** (una quinta sopra): la zona del terzo suono, quello leggero |
+| Metriche | banda "in target" a ±1,5 semitoni dal target (148-176 Hz nell'esempio) |
+| Schermo | la fascia sulla colonna del pitch è quella banda |
+
+### Quando
+**Appena finisce "Dove arrivi"**, a metà sessione, non alla fine: così il drone usa
+il target nuovo già dal primo esercizio vero. Se nei 40 secondi non si raccolgono
+almeno ~4,6 s di voce vera, non si salva niente, lo si dice a voce, e la
+misurazione torna al giro dopo. Nessun contatore: basta il flag.
+
+### Ricalibrazione
+La voce si muove: dopo qualche settimana il target misurato all'inizio diventa il
+punto di partenza invece del bersaglio. Dalla schermata iniziale si chiede
+**"Ricalibra alla prossima sessione"**, che rimette i 90 secondi di misurazione in
+testa al giro successivo; la richiesta si annulla con un secondo tocco e si
+consuma solo quando la misurazione riesce. A fine misurazione la voce dice di
+quanto il target si è spostato.
+
+Un insight lo propone da sé quando la mediana delle ultime tre sessioni ha
+raggiunto il target: in quel momento il target non tira più.
+
+### Limite residuo
+Non c'è modo di scrivere il target a mano: arriva con la schermata delle
+impostazioni, in Fase 3.
 
 ---
 

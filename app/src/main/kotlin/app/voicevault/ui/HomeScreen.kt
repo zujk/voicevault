@@ -58,8 +58,8 @@ fun HomeScreen(
         value = app.db.sessions().recentOnce(1).firstOrNull()
     }
 
-    val calibrating = !settings.calibrated
-    val program = Exercises.programFor(settings.calibrated)
+    val needsMeasurement = !settings.calibrated || settings.recalibrateRequested
+    val program = Exercises.programFor(needsMeasurement)
 
     Column(
         modifier = Modifier
@@ -105,10 +105,11 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = if (calibrating) {
-                        "I primi 90 secondi misurano la tua voce"
-                    } else {
-                        "Drone sul target: ${settings.targetHz.toInt()} Hz"
+                    text = when {
+                        !settings.calibrated -> "I primi 90 secondi misurano la tua voce"
+                        settings.recalibrateRequested ->
+                            "I primi 90 secondi rimisurano la tua voce"
+                        else -> "Drone sul target: ${settings.targetHz.toInt()} Hz"
                     },
                     style = MaterialTheme.typography.bodyLarge,
                     color = VV.TextDim,
@@ -134,6 +135,20 @@ fun HomeScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = VV.TextDim,
                 )
+            }
+        }
+
+        // La ricalibrazione sta qui e non dentro il bersaglio grande: un tocco
+        // per sbaglio mentre si parte non deve cambiare il programma.
+        if (settings.calibrated) {
+            if (settings.recalibrateRequested) {
+                TextAction("✓ La prossima sessione rimisura — tocca per annullare") {
+                    app.settings.requestRecalibration(false)
+                }
+            } else {
+                TextAction("Ricalibra alla prossima sessione") {
+                    app.settings.requestRecalibration(true)
+                }
             }
         }
     }

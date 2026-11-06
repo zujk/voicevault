@@ -40,7 +40,8 @@ routing automatico.
   dove un esempio non c'è;
 - **calibrazione**: 90 secondi in testa alla prima sessione misurano la tua voce
   (mediana del parlato e tetto comodo) e tarano il target del drone, invece di
-  prenderlo da una tabella. Il target entra in vigore subito, a metà sessione;
+  prenderlo da una tabella. Il target entra in vigore subito, a metà sessione, e
+  si può chiedere una **ricalibrazione** quando la voce si è spostata;
 - schermata di guida landscape: tap in qualunque punto = avanti, pressione lunga
   = stop. Nessun bersaglio piccolo;
 - calendario mensile con i pallini, striscia di giorni, minuti del mese;

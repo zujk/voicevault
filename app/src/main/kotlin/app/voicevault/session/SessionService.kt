@@ -140,7 +140,9 @@ class SessionService : Service() {
 
             // Finche' la voce non e' stata misurata, la misurazione sta in testa
             // al programma normale invece di occupare una sessione intera.
-            val program = Exercises.programFor(settings.current.calibrated)
+            val needsMeasurement =
+                !settings.current.calibrated || settings.current.recalibrateRequested
+            val program = Exercises.programFor(needsMeasurement)
 
             // Non e' costante: appena la misurazione e' pronta, a meta' sessione,
             // il target cambia e il drone lo segue per il resto del giro.
@@ -277,7 +279,7 @@ class SessionService : Service() {
                 // Appena i due esercizi di misurazione sono passati si calibra,
                 // cosi' il drone usa il target nuovo per il resto della sessione
                 // invece di aspettare la fine e servire a nulla.
-                if (exercise.id == "cal_range" && !settings.current.calibrated) {
+                if (exercise.id == "cal_range") {
                     applyCalibration(settings)
                     targetHz = settings.current.targetHz
                     _state.value = _state.value.copy(targetHz = targetHz)
@@ -329,15 +331,25 @@ class SessionService : Service() {
         val speech = perExercise["cal_speech"]?.summary(settings.current.targetHz)
         val range = perExercise["cal_range"]?.summary(settings.current.targetHz)
         if (speech == null || speech.voicedFrames < 200) {
-            speaker?.say("Non ho abbastanza voce per calibrare: rifacciamo la calibrazione la prossima volta.")
+            speaker?.say("Non ho abbastanza voce per calibrare: rifacciamo la misurazione la prossima volta.")
             return
         }
+        val previous = settings.current.targetHz
+        val wasCalibrated = settings.current.calibrated
         // Target: a meta' strada fra la voce attuale e il tetto comodo, cosi' e'
         // un passo raggiungibile e non un numero preso da una tabella.
         val comfortableMax = range?.p90F0 ?: (speech.medianF0 * 1.3f)
         val target = speech.medianF0 + (comfortableMax - speech.medianF0) * 0.45f
         settings.saveCalibration(medianSpeechHz = target, comfortableMaxHz = comfortableMax)
-        speaker?.say("Calibrazione fatta. Partiamo da ${target.toInt()} hertz.")
+        if (wasCalibrated) {
+            val verso = if (target > previous) "salito" else "sceso"
+            speaker?.say(
+                "Ricalibrato: il target e' $verso da ${previous.toInt()} " +
+                    "a ${target.toInt()} hertz."
+            )
+        } else {
+            speaker?.say("Misurazione fatta. Partiamo da ${target.toInt()} hertz.")
+        }
     }
 
     @Volatile private var currentAccumulator: MetricAccumulator? = null

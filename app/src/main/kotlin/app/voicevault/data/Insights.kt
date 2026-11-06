@@ -10,16 +10,33 @@ import kotlin.math.abs
  */
 object Insights {
 
-    fun forSessions(sessions: List<TrainingSession>): List<String> {
+    fun forSessions(sessions: List<TrainingSession>, targetHz: Float): List<String> {
         val done = sessions.filter { it.completed && !it.isCalibration }
         val out = mutableListOf<String>()
 
+        staleTarget(done, targetHz)?.let(out::add)
         trendSpeechPitch(done)?.let(out::add)
         signalWarning(done)?.let(out::add)
         newBest(done)?.let(out::add)
         gapNudge(sessions)?.let(out::add)
 
         return out.take(2)
+    }
+
+    /**
+     * Il target non tira piu'.
+     *
+     * Quando la mediana delle ultime sessioni ha raggiunto il target, quello non
+     * e' piu' un bersaglio ma il punto da cui parti: e' il momento di rimisurare.
+     */
+    private fun staleTarget(sessions: List<TrainingSession>, targetHz: Float): String? {
+        val medians = sessions.take(3).mapNotNull { it.medianF0 }
+        if (medians.size < 3) return null
+        val recent = medians.average()
+        if (recent < targetHz - 3.0) return null
+        return "La tua mediana e' ${recent.toInt()} Hz e il target del drone e' " +
+            "${targetHz.toInt()}: il target non ti tira piu'. " +
+            "Dalla schermata iniziale puoi chiedere di ricalibrare."
     }
 
     /** Confronto fra le ultime 3 sessioni e le 3 precedenti: serve un minimo di storia. */

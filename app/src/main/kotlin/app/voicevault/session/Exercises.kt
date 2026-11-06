@@ -113,17 +113,17 @@ object Exercises {
     /**
      * Il programma della sessione.
      *
-     * Finche' la voce non e' stata misurata, i due esercizi di misurazione si
-     * mettono in testa al programma normale e il riscaldamento si accorcia, cosi'
-     * la prima sessione resta sotto i dodici minuti. Se la misurazione non
-     * riesce (poca voce), [calibrated] resta falso e si riprova al giro dopo,
-     * senza nessun contatore da tenere.
+     * Quando serve misurare la voce — la prima volta, o perche' e' stata chiesta
+     * una ricalibrazione — i due esercizi di misurazione si mettono in testa al
+     * programma normale e il riscaldamento si accorcia, cosi' la sessione resta
+     * sotto i dodici minuti ed e' comunque un allenamento. Se la misurazione non
+     * riesce (poca voce) si riprova al giro dopo, senza contatori da tenere.
      */
-    fun programFor(calibrated: Boolean): Program {
-        if (calibrated) return programA
+    fun programFor(needsMeasurement: Boolean): Program {
+        if (!needsMeasurement) return programA
         return Program(
             id = "A0",
-            title = "Prima sessione",
+            title = "Sessione con misurazione",
             exercises = listOf(warmup.copy(durationSec = 90), measureSpeech, measureRange) +
                 programA.exercises.drop(1),
             isCalibration = true,
