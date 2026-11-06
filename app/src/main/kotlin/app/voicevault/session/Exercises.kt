@@ -74,33 +74,33 @@ object Exercises {
         measured = true,
     )
 
-    // --- Calibrazione: le prime sessioni servono a misurare te, non ad allenarti. ---
+    // --- Misurazione: 90 secondi in testa alla prima sessione, una volta sola. ---
+    //
+    // Prima era una sessione dedicata di 6 minuti. Era troppa cerimonia per
+    // misurare una mediana e un tetto: 40 secondi di parlato e 50 di scivolate
+    // bastano, e cosi' il primo giro e' comunque un allenamento.
+    //
+    // Qui la voce sintetica resta di proposito: un esempio della lezione
+    // occuperebbe il tempo che serve a sentire *te*, e non si misurerebbe niente.
 
-    private val calRange = Exercise(
-        id = "cal_range",
-        title = "Dove arrivi",
-        durationSec = 150,
-        exampleRes = R.raw.esempio_esplorazione,
-        droneRatio = null,
-        measured = true,
-    )
-
-    private val calSpeech = Exercise(
+    private val measureSpeech = Exercise(
         id = "cal_speech",
         title = "La tua voce",
-        durationSec = 120,
-        spoken = "Adesso parla normale, come parli tutti i giorni. " +
-            "Racconta com'e' andata la giornata, o cosa devi fare oggi. " +
-            "Mi serve la tua voce di partenza.",
+        durationSec = 40,
+        spoken = "Prima di cominciare ti misuro la voce. Parla normale per " +
+            "mezzo minuto: raccontami cosa devi fare oggi.",
         droneRatio = null,
         measured = true,
     )
 
-    val calibration = Program(
-        id = "cal",
-        title = "Calibrazione",
-        exercises = listOf(warmup.copy(durationSec = 90), calRange, calSpeech),
-        isCalibration = true,
+    private val measureRange = Exercise(
+        id = "cal_range",
+        title = "Dove arrivi",
+        durationSec = 50,
+        spoken = "Ora qualche scivolata dal basso verso l'alto, fino a dove resti " +
+            "comoda. Fermati prima che faccia fatica: mi serve il tuo tetto, non il massimo.",
+        droneRatio = null,
+        measured = true,
     )
 
     /** Il programma della Fase 1: esercizi 0, 1, 2 e 5 del documento. */
@@ -110,6 +110,23 @@ object Exercises {
         exercises = listOf(warmup, humSlide, heavyHeavyLight, carryover),
     )
 
-    /** Quante sessioni di calibrazione servono prima di passare all'allenamento. */
-    const val CALIBRATION_SESSIONS = 2
+    /**
+     * Il programma della sessione.
+     *
+     * Finche' la voce non e' stata misurata, i due esercizi di misurazione si
+     * mettono in testa al programma normale e il riscaldamento si accorcia, cosi'
+     * la prima sessione resta sotto i dodici minuti. Se la misurazione non
+     * riesce (poca voce), [calibrated] resta falso e si riprova al giro dopo,
+     * senza nessun contatore da tenere.
+     */
+    fun programFor(calibrated: Boolean): Program {
+        if (calibrated) return programA
+        return Program(
+            id = "A0",
+            title = "Prima sessione",
+            exercises = listOf(warmup.copy(durationSec = 90), measureSpeech, measureRange) +
+                programA.exercises.drop(1),
+            isCalibration = true,
+        )
+    }
 }

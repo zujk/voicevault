@@ -84,9 +84,6 @@ interface SessionDao {
     )
     fun dayCounts(from: String, to: String): Flow<List<DayCount>>
 
-    @Query("SELECT COUNT(*) FROM sessions WHERE completed = 1 AND is_calibration = 1")
-    suspend fun calibrationSessionCount(): Int
-
 }
 
 @Database(entities = [TrainingSession::class, ExerciseSegment::class], version = 1, exportSchema = true)

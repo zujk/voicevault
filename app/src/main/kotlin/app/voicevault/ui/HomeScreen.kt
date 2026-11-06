@@ -58,7 +58,7 @@ fun HomeScreen(
     }
 
     val calibrating = !settings.calibrated
-    val program = if (calibrating) Exercises.calibration else Exercises.programA
+    val program = Exercises.programFor(settings.calibrated)
 
     Column(
         modifier = Modifier
@@ -104,7 +104,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = if (calibrating) {
-                        "Le prime sessioni misurano la tua voce"
+                        "I primi 90 secondi misurano la tua voce"
                     } else {
                         "Drone sul target: ${settings.targetHz.toInt()} Hz"
                     },

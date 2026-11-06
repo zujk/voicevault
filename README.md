@@ -38,8 +38,9 @@ routing automatico.
   nell'app: riscaldamento, hum e scivolata, pesante-pesante-leggero, carryover al
   parlato. Mentre un esempio suona il drone tace. La voce sintetica resta solo
   dove un esempio non c'è;
-- **calibrazione**: le prime due sessioni misurano la tua voce e tarano il target,
-  invece di prenderlo da una tabella;
+- **calibrazione**: 90 secondi in testa alla prima sessione misurano la tua voce
+  (mediana del parlato e tetto comodo) e tarano il target del drone, invece di
+  prenderlo da una tabella. Il target entra in vigore subito, a metà sessione;
 - schermata di guida landscape: tap in qualunque punto = avanti, pressione lunga
   = stop. Nessun bersaglio piccolo;
 - calendario mensile con i pallini, striscia di giorni, minuti del mese;

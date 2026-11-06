@@ -138,17 +138,13 @@ class SessionService : Service() {
             val dao = app.db.sessions()
             val settings = app.settings
 
-            // Le prime sessioni misurano la voce invece di allenarla.
-            val calibrationsDone = dao.calibrationSessionCount()
-            val program = if (!settings.current.calibrated &&
-                calibrationsDone < Exercises.CALIBRATION_SESSIONS
-            ) {
-                Exercises.calibration
-            } else {
-                Exercises.programA
-            }
+            // Finche' la voce non e' stata misurata, la misurazione sta in testa
+            // al programma normale invece di occupare una sessione intera.
+            val program = Exercises.programFor(settings.current.calibrated)
 
-            val targetHz = settings.current.targetHz
+            // Non e' costante: appena la misurazione e' pronta, a meta' sessione,
+            // il target cambia e il drone lo segue per il resto del giro.
+            var targetHz = settings.current.targetHz
             val startedAt = System.currentTimeMillis()
             val dayKey = dayKeyFormat.format(Date(startedAt))
 
@@ -205,11 +201,7 @@ class SessionService : Service() {
                 sessionRemainingSec = program.totalSec,
             )
 
-            if (program.isCalibration) {
-                speaker?.say("Sessione di calibrazione, ${program.totalSec / 60} minuti.")
-            } else {
-                speaker?.say("${program.title}, ${program.totalSec / 60} minuti. Si parte.")
-            }
+            speaker?.say("${program.title}, ${program.totalSec / 60} minuti. Si parte.")
 
             val sessionStartMs = System.currentTimeMillis()
 
@@ -276,6 +268,15 @@ class SessionService : Service() {
                         tiltAvg = exerciseSummary?.tiltAvg,
                     )
                 )
+
+                // Appena i due esercizi di misurazione sono passati si calibra,
+                // cosi' il drone usa il target nuovo per il resto della sessione
+                // invece di aspettare la fine e servire a nulla.
+                if (exercise.id == "cal_range" && !settings.current.calibrated) {
+                    applyCalibration(settings)
+                    targetHz = settings.current.targetHz
+                    _state.value = _state.value.copy(targetHz = targetHz)
+                }
             }
 
             currentAccumulator = null
@@ -283,10 +284,6 @@ class SessionService : Service() {
 
             val durationMs = System.currentTimeMillis() - sessionStartMs
             val summary = sessionMetrics.summary(targetHz)
-
-            if (program.isCalibration) {
-                applyCalibration(settings)
-            }
 
             dao.update(
                 TrainingSession(

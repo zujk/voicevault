@@ -3,7 +3,7 @@
 App Android per voice training MTF femminilizzante durante il commute in auto.
 Documento di studio: **nessun codice scritto**, da validare prima dell'implementazione.
 
-> Rev. 7 — la guida parlata diventa l'audio della lezione, non piu' voce sintetica.
+> Rev. 8 — la calibrazione scende da una sessione di 6 minuti a 90 secondi in testa alla prima.
 
 ---
 
@@ -308,7 +308,12 @@ senso e la latenza lo consente.
 
 ## 12. Domande ancora aperte
 
-1. **Pitch target**: deciso che lo misura l'app. Le prime 2-3 sessioni girano in
-   modalità calibrazione, registrano la tua zona comoda e tarano il drone su quella,
-   invece di partire da un numero preso da una tabella.
+1. **Pitch target**: deciso che lo misura l'app, e deciso come. Non una sessione
+   dedicata, ma **90 secondi in testa alla prima sessione**: 40 s di parlato
+   normale per la mediana, 50 s di scivolate per il tetto comodo. Il target si
+   posa al 45% della distanza fra i due — un passo raggiungibile, non un
+   traguardo; quel 45% è una scelta, non un dato di letteratura. La calibrazione
+   viene applicata **appena la misurazione finisce**, non a fine sessione, così il
+   drone usa il target giusto già dal primo esercizio vero. Se la misurazione non
+   riesce per poca voce, si riprova al giro dopo.
 2. Discrezione: nome e icona neutri? lock biometrico all'apertura?
