@@ -22,14 +22,14 @@ import androidx.core.content.ContextCompat
 import app.voicevault.session.SessionService
 import app.voicevault.ui.CalendarScreen
 import app.voicevault.ui.DiagnosticsScreen
-import app.voicevault.ui.ExamplesScreen
+import app.voicevault.ui.LessonScreen
 import app.voicevault.ui.HomeScreen
 import app.voicevault.ui.RecordingsScreen
 import app.voicevault.ui.SessionScreen
 import app.voicevault.ui.theme.VoiceVaultTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
-enum class Screen { Home, Session, Calendar, Recordings, Examples, Diagnostics }
+enum class Screen { Home, Session, Calendar, Recordings, Lesson, Diagnostics }
 
 class MainActivity : ComponentActivity() {
 
@@ -92,7 +92,7 @@ private fun AppRoot(
         Screen.Session -> SessionScreen(state = sessionState)
         Screen.Calendar -> CalendarScreen(onBack = { screen = Screen.Home })
         Screen.Recordings -> RecordingsScreen(onBack = { screen = Screen.Home })
-        Screen.Examples -> ExamplesScreen(onBack = { screen = Screen.Home })
+        Screen.Lesson -> LessonScreen(onBack = { screen = Screen.Home })
         Screen.Diagnostics -> DiagnosticsScreen(
             micGranted = granted,
             onRequestPermission = onRequestPermissions,
@@ -104,7 +104,7 @@ private fun AppRoot(
             onRequestPermission = onRequestPermissions,
             onOpenCalendar = { screen = Screen.Calendar },
             onOpenRecordings = { screen = Screen.Recordings },
-            onOpenExamples = { screen = Screen.Examples },
+            onOpenLesson = { screen = Screen.Lesson },
             onOpenDiagnostics = { screen = Screen.Diagnostics },
         )
     }

@@ -1,6 +1,5 @@
 package app.voicevault.session
 
-import app.voicevault.R
 
 /**
  * Gli esercizi, come dati.
@@ -19,8 +18,11 @@ data class Exercise(
     /** Due o tre parole: va letto a un metro di distanza con la coda dell'occhio. */
     val title: String,
     val durationSec: Int,
-    /** Esempio audio dalla lezione. Mentre suona il drone tace. */
-    val exampleRes: Int? = null,
+    /**
+     * Identificativo della clip della lezione da far sentire all'avvio.
+     * Mentre suona il drone tace. Vedi app.voicevault.data.Library.
+     */
+    val exampleClipId: String? = null,
     /** Detto dalla voce sintetica, solo dove manca un esempio audio. */
     val spoken: String? = null,
     /** Moltiplicatore sulla nota target. null = drone spento. */
@@ -53,7 +55,7 @@ object Exercises {
         id = "hum_slide",
         title = "Hum e scivolata",
         durationSec = 180,
-        exampleRes = R.raw.esempio_hum_slide,
+        exampleClipId = "07_hum_slide",
         droneRatio = 1f,
     )
 
@@ -61,7 +63,7 @@ object Exercises {
         id = "heavy_heavy_light",
         title = "Pesante pesante leggero",
         durationSec = 180,
-        exampleRes = R.raw.esempio_heavy_heavy_light,
+        exampleClipId = "08_heavy_light",
         droneRatio = 1.5f,
     )
 
@@ -69,7 +71,7 @@ object Exercises {
         id = "carryover",
         title = "Nel parlato",
         durationSec = 150,
-        exampleRes = R.raw.esempio_carryover,
+        exampleClipId = "carryover_estratto",
         droneRatio = 1f,
         measured = true,
     )

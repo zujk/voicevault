@@ -21,6 +21,7 @@ import app.voicevault.audio.AudioCapture
 import app.voicevault.audio.DroneEngine
 import app.voicevault.audio.PitchLog
 import app.voicevault.data.ExerciseSegment
+import app.voicevault.data.Library
 import app.voicevault.data.RecordingStore
 import app.voicevault.data.Settings
 import app.voicevault.data.TrainingSession
@@ -228,12 +229,13 @@ class SessionService : Service() {
                     exerciseRemainingSec = exercise.durationSec,
                 )
 
-                if (exercise.exampleRes != null) {
+                val clipRes = exercise.exampleClipId?.let { Library.clip(it)?.res }
+                if (clipRes != null) {
                     // Il drone tace durante l'esempio: l'esempio ha dentro le sue
                     // note, e due altezze insieme non si capirebbero.
                     droneEngine.setGain(0f)
                     _state.value = _state.value.copy(examplePlaying = true)
-                    examples?.play(exercise.exampleRes) {
+                    examples?.play(clipRes) {
                         droneEngine.setGain(droneGain)
                         _state.value = _state.value.copy(examplePlaying = false)
                     }

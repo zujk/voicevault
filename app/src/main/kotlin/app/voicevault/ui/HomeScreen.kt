@@ -45,7 +45,7 @@ fun HomeScreen(
     onRequestPermission: () -> Unit,
     onOpenCalendar: () -> Unit,
     onOpenRecordings: () -> Unit,
-    onOpenExamples: () -> Unit,
+    onOpenLesson: () -> Unit,
     onOpenDiagnostics: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -73,7 +73,7 @@ fun HomeScreen(
         ) {
             TextAction("Calendario", onOpenCalendar)
             TextAction("Registrazioni", onOpenRecordings)
-            TextAction("Esempi", onOpenExamples)
+            TextAction("Lezione", onOpenLesson)
             TextAction("Diagnostica", onOpenDiagnostics)
         }
 
