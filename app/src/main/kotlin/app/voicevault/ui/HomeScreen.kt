@@ -44,6 +44,7 @@ fun HomeScreen(
     finishedSessionId: Long?,
     onRequestPermission: () -> Unit,
     onOpenCalendar: () -> Unit,
+    onOpenRecordings: () -> Unit,
     onOpenDiagnostics: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -63,14 +64,18 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(VV.Background)
-            .padding(24.dp)
+            .padding(horizontal = 18.dp, vertical = 10.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
             TextAction("Calendario", onOpenCalendar)
+            TextAction("Registrazioni", onOpenRecordings)
             TextAction("Diagnostica", onOpenDiagnostics)
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
         Box(
             modifier = Modifier
@@ -86,7 +91,7 @@ fun HomeScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = if (micGranted) "INIZIA" else "CONSENTI IL MICROFONO",
-                    style = MaterialTheme.typography.displayLarge,
+                    style = MaterialTheme.typography.displayMedium,
                     color = if (micGranted) VV.Light else VV.Heavy,
                     textAlign = TextAlign.Center,
                 )
@@ -109,7 +114,7 @@ fun HomeScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(10.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),

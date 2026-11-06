@@ -58,7 +58,8 @@ fun SessionScreen(state: SessionUiState) {
         }
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            previousOrientation?.let { activity.requestedOrientation = it }
+            activity?.requestedOrientation =
+                previousOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
@@ -72,7 +73,7 @@ fun SessionScreen(state: SessionUiState) {
                     onLongPress = { SessionService.stop(context) },
                 )
             }
-            .padding(horizontal = 28.dp, vertical = 20.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
         Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
 
@@ -82,13 +83,13 @@ fun SessionScreen(state: SessionUiState) {
                     style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
                     color = VV.TextDim,
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = state.exerciseTitle,
                     style = androidx.compose.material3.MaterialTheme.typography.displayMedium,
                     color = VV.Text,
                 )
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     text = formatTime(state.exerciseRemainingSec),
                     style = androidx.compose.material3.MaterialTheme.typography.displayLarge,
@@ -101,7 +102,7 @@ fun SessionScreen(state: SessionUiState) {
                     style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     color = VV.TextDim,
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = "tap = avanti   ·   tieni premuto = stop",
                     style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
@@ -109,12 +110,12 @@ fun SessionScreen(state: SessionUiState) {
                 )
             }
 
-            Spacer(Modifier.width(24.dp))
+            Spacer(Modifier.width(16.dp))
 
             PitchColumn(
                 state = state,
                 modifier = Modifier
-                    .width(120.dp)
+                    .width(86.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(24.dp))
                     .background(VV.Surface),

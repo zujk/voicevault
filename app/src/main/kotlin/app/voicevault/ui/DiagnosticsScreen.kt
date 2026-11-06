@@ -18,10 +18,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import app.voicevault.CrashLog
 import app.voicevault.audio.AudioCapture
 import app.voicevault.ui.theme.VV
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,11 +64,12 @@ fun DiagnosticsScreen(
     val audioManager = context.getSystemService(AudioManager::class.java)
     val flow = remember { MutableStateFlow(DiagState()) }
     val state by flow.collectAsState()
+    var crash by remember { mutableStateOf(CrashLog.read(context)) }
 
     DisposableEffect(micGranted) {
         var capture: AudioCapture? = null
         if (micGranted) {
-            val c = AudioCapture(audioManager) { frame ->
+            val c = AudioCapture(audioManager, context = context) { frame ->
                 val p = frame.pitch
                 val prev = flow.value
                 val hasSound = p.rmsDb > -42f
@@ -100,7 +104,21 @@ fun DiagnosticsScreen(
         TextAction("← Indietro", onBack)
         Spacer(Modifier.height(10.dp))
         Text("DIAGNOSTICA", style = MaterialTheme.typography.labelLarge, color = VV.TextDim)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
+
+        // Se l'app e' andata in crash, il motivo si legge qui: in auto non c'e'
+        // un cavo per leggere i log di sistema.
+        crash?.let { text ->
+            Text("ULTIMO ERRORE", style = MaterialTheme.typography.labelLarge, color = VV.Heavy)
+            Spacer(Modifier.height(6.dp))
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = VV.Text)
+            Spacer(Modifier.height(6.dp))
+            TextAction("Cancella l'errore") {
+                CrashLog.clear(context)
+                crash = null
+            }
+            Spacer(Modifier.height(16.dp))
+        }
 
         if (!micGranted) {
             TextAction("Consenti il microfono", onRequestPermission)

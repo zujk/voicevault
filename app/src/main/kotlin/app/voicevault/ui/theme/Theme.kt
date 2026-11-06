@@ -41,15 +41,18 @@ private val scheme = darkColorScheme(
     error = VV.Danger,
 )
 
-/** Testi grandi: tutto va letto con la coda dell'occhio, a un metro. */
+/**
+ * Testi grandi, ma non enormi: devono restare leggibili con la coda dell'occhio
+ * a un metro **e** stare dentro uno schermo in landscape senza sfondare.
+ */
 private val typography = Typography(
-    displayLarge = TextStyle(fontSize = 72.sp, fontWeight = FontWeight.Light, letterSpacing = (-1).sp),
-    displayMedium = TextStyle(fontSize = 48.sp, fontWeight = FontWeight.Light),
-    headlineLarge = TextStyle(fontSize = 34.sp, fontWeight = FontWeight.Normal),
-    titleLarge = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Medium),
-    bodyLarge = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Normal),
-    bodyMedium = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Normal),
-    labelLarge = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
+    displayLarge = TextStyle(fontSize = 52.sp, fontWeight = FontWeight.Light, letterSpacing = (-1).sp),
+    displayMedium = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.Light),
+    headlineLarge = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Normal),
+    titleLarge = TextStyle(fontSize = 19.sp, fontWeight = FontWeight.Medium),
+    bodyLarge = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Normal),
+    bodyMedium = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal),
+    labelLarge = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
 )
 
 @Composable

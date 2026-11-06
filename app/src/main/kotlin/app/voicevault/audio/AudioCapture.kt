@@ -5,6 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import app.voicevault.CrashLog
 import kotlin.concurrent.thread
 
 data class AnalysisFrame(
@@ -31,6 +32,8 @@ data class CaptureInfo(
 class AudioCapture(
     private val audioManager: AudioManager,
     private val sampleRate: Int = 44_100,
+    /** Contesto opzionale: serve solo a scrivere il log se il thread audio muore. */
+    private val context: android.content.Context? = null,
     private val onFrame: (AnalysisFrame) -> Unit,
 ) {
     private val windowSize = 2048
@@ -99,7 +102,21 @@ class AudioCapture(
         running = true
         r.startRecording()
 
-        worker = thread(name = "vv-capture", priority = Thread.MAX_PRIORITY) { loop(r) }
+        worker = thread(name = "vv-capture", priority = Thread.MAX_PRIORITY) {
+            try {
+                loop(r)
+            } catch (t: Throwable) {
+                // Un'eccezione qui ucciderebbe il processo: la si registra e si esce
+                // in modo pulito, perche' la sessione sta comunque finendo.
+                context?.let { CrashLog.record(it, "vv-capture", t) }
+            } finally {
+                // Rilascio sul thread che l'ha usato: nessun altro thread puo'
+                // toccare un AudioRecord gia' rilasciato.
+                runCatching { r.stop() }
+                runCatching { r.release() }
+                record = null
+            }
+        }
         return true
     }
 
@@ -133,12 +150,20 @@ class AudioCapture(
         }
     }
 
+    /**
+     * Ferma la cattura e **aspetta** che il thread audio sia davvero finito.
+     *
+     * Senza l'attesa piena il chiamante poteva rilasciare encoder e file mentre
+     * il thread di cattura ci stava ancora scrivendo: era la causa piu'
+     * probabile della crash a fine sessione.
+     */
     fun stop() {
         running = false
-        worker?.join(500)
+        val w = worker
         worker = null
-        record?.runCatching { stop() }
-        record?.release()
-        record = null
+        runCatching { w?.join(3_000) }
+        // Le destinazioni si staccano solo ora: da qui in poi nessuno scrive piu'.
+        fileWriter = null
+        pitchLog = null
     }
 }

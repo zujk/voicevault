@@ -11,6 +11,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.IBinder
+import app.voicevault.CrashLog
 import app.voicevault.MainActivity
 import app.voicevault.R
 import app.voicevault.VoiceVaultApp
@@ -20,6 +21,7 @@ import app.voicevault.audio.AudioCapture
 import app.voicevault.audio.DroneEngine
 import app.voicevault.audio.PitchLog
 import app.voicevault.data.ExerciseSegment
+import app.voicevault.data.RecordingStore
 import app.voicevault.data.Settings
 import app.voicevault.data.TrainingSession
 import kotlinx.coroutines.CoroutineScope
@@ -84,6 +86,7 @@ class SessionService : Service() {
     private var drone: DroneEngine? = null
     private var writer: AacFileWriter? = null
     private var pitchLog: PitchLog? = null
+    private var recordingTarget: RecordingStore.Target? = null
     private var speaker: Speaker? = null
     private var focusRequest: AudioFocusRequest? = null
 
@@ -117,6 +120,19 @@ class SessionService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification("Sessione in corso"))
 
         sessionJob = scope.launch {
+            try {
+                runSession()
+            } catch (t: Throwable) {
+                CrashLog.record(this@SessionService, "sessione", t)
+                _state.value = SessionUiState()
+                cleanup()
+                runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+                stopSelf()
+            }
+        }
+    }
+
+    private suspend fun runSession() {
             val app = application as VoiceVaultApp
             val dao = app.db.sessions()
             val settings = app.settings
@@ -144,15 +160,18 @@ class SessionService : Service() {
                 )
             )
 
-            val dir = File(filesDir, "recordings").apply { mkdirs() }
-            val stem = "${fileStampFormat.format(Date(startedAt))}_$sessionId"
-            val audioFile = File(dir, "$stem.m4a")
-            val logFile = File(dir, "$stem.csv")
+            val stem = "voicevault_${fileStampFormat.format(Date(startedAt))}"
+            val target = RecordingStore.create(this@SessionService, "$stem.m4a")
+            recordingTarget = target
+            val logFile = File(RecordingStore.fallbackDir(this@SessionService), "$stem.csv")
 
             val log = PitchLog(logFile)
-            val fileWriter = AacFileWriter(SAMPLE_RATE).apply { start(audioFile) }
+            val fileWriter = AacFileWriter(SAMPLE_RATE).apply {
+                val fd = target.descriptor?.fileDescriptor
+                if (fd != null) start(fd) else start(target.file!!)
+            }
             val droneEngine = DroneEngine(audioManager)
-            val cap = AudioCapture(audioManager, SAMPLE_RATE, ::onFrame).apply {
+            val cap = AudioCapture(audioManager, SAMPLE_RATE, this@SessionService, ::onFrame).apply {
                 this.fileWriter = fileWriter
                 this.pitchLog = log
             }
@@ -170,8 +189,9 @@ class SessionService : Service() {
             if (!started) {
                 speaker?.say("Non riesco ad accedere al microfono. Sessione annullata.")
                 cleanup()
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
-                return@launch
+                return
             }
 
             _state.value = SessionUiState(
@@ -277,7 +297,7 @@ class SessionService : Service() {
                     pctInTarget = summary?.pctInTarget,
                     tiltAvg = summary?.tiltAvg,
                     signalQuality = summary?.signalQuality,
-                    audioPath = audioFile.absolutePath,
+                    audioPath = target.reference,
                     pitchLogPath = logFile.absolutePath,
                     completed = durationMs > MIN_KEEP_MS,
                 )
@@ -292,7 +312,6 @@ class SessionService : Service() {
             cleanup()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
-        }
     }
 
     /**
@@ -337,15 +356,23 @@ class SessionService : Service() {
         skip.set(true)
     }
 
+    /**
+     * Ordine obbligato: prima si aspetta che il thread di cattura sia finito,
+     * solo dopo si chiudono encoder e file. Al contrario si chiudeva un codec
+     * che il thread audio stava ancora usando.
+     */
     private fun cleanup() {
         capture?.stop()
         capture = null
-        writer?.stop()
-        writer = null
-        pitchLog?.close()
-        pitchLog = null
         drone?.stop()
         drone = null
+        writer?.stop()
+        writer = null
+        // Solo dopo che l'encoder ha chiuso il file lo si rende visibile.
+        recordingTarget?.finish(this)
+        recordingTarget = null
+        pitchLog?.close()
+        pitchLog = null
         speaker?.release()
         speaker = null
         abandonAudioFocus()

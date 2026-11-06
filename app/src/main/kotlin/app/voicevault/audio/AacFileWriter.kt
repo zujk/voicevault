@@ -4,6 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import java.io.File
+import java.io.FileDescriptor
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -24,9 +25,16 @@ class AacFileWriter(
     private var trackIndex = -1
     private var muxerStarted = false
     private var totalSamples = 0L
+    @Volatile private var closed = false
     private val bufferInfo = MediaCodec.BufferInfo()
 
-    fun start(file: File) {
+    fun start(file: File) = start { MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4) }
+
+    /** Variante per MediaStore, che consegna un descrittore e non un percorso. */
+    fun start(fd: FileDescriptor) = start { MediaMuxer(fd, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4) }
+
+    private fun start(makeMuxer: () -> MediaMuxer) {
+        closed = false
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, 1).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, android.media.MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
@@ -36,11 +44,12 @@ class AacFileWriter(
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             start()
         }
-        muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        muxer = makeMuxer()
     }
 
     /** Chiamata dal thread di cattura, con i campioni appena letti. */
     fun write(pcm: ShortArray, count: Int) {
+        if (closed) return
         val c = codec ?: return
         var offset = 0
         while (offset < count) {
@@ -61,6 +70,8 @@ class AacFileWriter(
     }
 
     fun stop() {
+        if (closed) return
+        closed = true
         val c = codec ?: return
         runCatching {
             val inIndex = c.dequeueInputBuffer(100_000)
@@ -86,7 +97,11 @@ class AacFileWriter(
     private fun drain(endOfStream: Boolean) {
         val c = codec ?: return
         val m = muxer ?: return
+        // Scadenza: se l'encoder non consegna l'end-of-stream non si resta
+        // appesi per sempre, cosa che bloccava la chiusura della sessione.
+        val deadline = System.currentTimeMillis() + 2_000
         while (true) {
+            if (endOfStream && System.currentTimeMillis() > deadline) return
             val index = c.dequeueOutputBuffer(bufferInfo, if (endOfStream) 10_000 else 0)
             when {
                 index == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!endOfStream) return

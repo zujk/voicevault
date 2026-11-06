@@ -15,6 +15,7 @@ class VoiceVaultApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLog.install(this)
         db = Room.databaseBuilder(this, VoiceVaultDb::class.java, "voicevault.db").build()
         settings = Settings(this)
     }

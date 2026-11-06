@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,11 +23,12 @@ import app.voicevault.session.SessionService
 import app.voicevault.ui.CalendarScreen
 import app.voicevault.ui.DiagnosticsScreen
 import app.voicevault.ui.HomeScreen
+import app.voicevault.ui.RecordingsScreen
 import app.voicevault.ui.SessionScreen
 import app.voicevault.ui.theme.VoiceVaultTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
-enum class Screen { Home, Session, Calendar, Diagnostics }
+enum class Screen { Home, Session, Calendar, Recordings, Diagnostics }
 
 class MainActivity : ComponentActivity() {
 
@@ -48,7 +50,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             VoiceVaultTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    // Da targetSdk 35 Android disegna a tutto schermo per
+                    // default: senza questo padding il contenuto finisce sotto
+                    // la barra di stato e sotto il foro della fotocamera.
+                    Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                         AppRoot(
                             micGranted = micGranted,
                             onRequestPermissions = { requestPermissions() },
@@ -85,6 +90,7 @@ private fun AppRoot(
     when (screen) {
         Screen.Session -> SessionScreen(state = sessionState)
         Screen.Calendar -> CalendarScreen(onBack = { screen = Screen.Home })
+        Screen.Recordings -> RecordingsScreen(onBack = { screen = Screen.Home })
         Screen.Diagnostics -> DiagnosticsScreen(
             micGranted = granted,
             onRequestPermission = onRequestPermissions,
@@ -95,6 +101,7 @@ private fun AppRoot(
             finishedSessionId = sessionState.finishedSessionId,
             onRequestPermission = onRequestPermissions,
             onOpenCalendar = { screen = Screen.Calendar },
+            onOpenRecordings = { screen = Screen.Recordings },
             onOpenDiagnostics = { screen = Screen.Diagnostics },
         )
     }

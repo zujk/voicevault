@@ -78,22 +78,30 @@ class DroneEngine(
 
         worker = thread(name = "vv-drone", priority = Thread.MAX_PRIORITY) {
             val buf = FloatArray(CHUNK_FRAMES * 2)
-            while (running) {
-                render(buf)
-                t.write(buf, 0, buf.size, AudioTrack.WRITE_BLOCKING)
+            try {
+                while (running) {
+                    render(buf)
+                    t.write(buf, 0, buf.size, AudioTrack.WRITE_BLOCKING)
+                }
+            } catch (_: Throwable) {
+                // Il drone che smette non deve portarsi dietro il processo.
+            } finally {
+                // Stesso principio della cattura: rilascia chi ha usato.
+                runCatching { t.stop() }
+                runCatching { t.release() }
+                track = null
             }
         }
     }
 
     fun stop() {
         running = false
-        worker?.join(500)
+        val w = worker
         worker = null
-        track?.runCatching { stop() }
-        track?.release()
-        track = null
+        runCatching { w?.join(2_000) }
         phase = 0.0
         currentGain = 0f
+        targetGain = 0f
     }
 
     private fun render(out: FloatArray) {
