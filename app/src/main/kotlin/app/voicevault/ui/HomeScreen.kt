@@ -28,15 +28,14 @@ import androidx.compose.ui.unit.dp
 import app.voicevault.VoiceVaultApp
 import app.voicevault.audio.AudioDevices
 import app.voicevault.data.TrainingSession
-import app.voicevault.session.Exercises
 import app.voicevault.session.SessionService
 import app.voicevault.ui.theme.VV
 
 /**
- * Schermata di partenza: un bersaglio enorme e tre informazioni.
+ * Schermata di partenza: un bersaglio enorme e poco altro.
  *
- * Non c'e' niente da configurare prima di allenarsi: il programma e il target
- * li decide l'app.
+ * Non c'e' niente da configurare prima di allenarsi. La nota del drone si
+ * sposta anche da qui, per non doverlo fare in marcia.
  */
 @Composable
 fun HomeScreen(
@@ -57,9 +56,6 @@ fun HomeScreen(
     val last by produceState<TrainingSession?>(initialValue = null, finishedSessionId) {
         value = app.db.sessions().recentOnce(1).firstOrNull()
     }
-
-    val needsMeasurement = !settings.calibrated || settings.recalibrateRequested
-    val program = Exercises.programFor(needsMeasurement)
 
     Column(
         modifier = Modifier
@@ -97,20 +93,9 @@ fun HomeScreen(
                     color = if (micGranted) VV.Light else VV.Heavy,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "${program.title} · ${program.totalSec / 60} minuti",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = VV.Text,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = when {
-                        !settings.calibrated -> "I primi 90 secondi misurano la tua voce"
-                        settings.recalibrateRequested ->
-                            "I primi 90 secondi rimisurano la tua voce"
-                        else -> "Drone sul target: ${settings.targetHz.toInt()} Hz"
-                    },
+                    text = "drone ${settings.targetHz.toInt()} Hz · registra · cronometro",
                     style = MaterialTheme.typography.bodyLarge,
                     color = VV.TextDim,
                 )
@@ -118,6 +103,23 @@ fun HomeScreen(
         }
 
         Spacer(Modifier.height(10.dp))
+
+        // La nota si regola anche da qui: meglio sistemarla da fermi che in marcia.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Nota del drone",
+                style = MaterialTheme.typography.bodyMedium,
+                color = VV.TextDim,
+            )
+            Row {
+                TextAction("− semitono") { app.settings.nudgeTarget(-1) }
+                TextAction("+ semitono") { app.settings.nudgeTarget(1) }
+            }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -137,20 +139,6 @@ fun HomeScreen(
                 )
             }
         }
-
-        // La ricalibrazione sta qui e non dentro il bersaglio grande: un tocco
-        // per sbaglio mentre si parte non deve cambiare il programma.
-        if (settings.calibrated) {
-            if (settings.recalibrateRequested) {
-                TextAction("✓ La prossima sessione rimisura — tocca per annullare") {
-                    app.settings.requestRecalibration(false)
-                }
-            } else {
-                TextAction("Ricalibra alla prossima sessione") {
-                    app.settings.requestRecalibration(true)
-                }
-            }
-        }
     }
 }
 
@@ -163,6 +151,6 @@ internal fun TextAction(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     )
 }

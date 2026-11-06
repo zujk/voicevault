@@ -11,6 +11,8 @@ import kotlin.math.abs
 object Insights {
 
     fun forSessions(sessions: List<TrainingSession>, targetHz: Float): List<String> {
+        // isCalibration resta falso da quando la sessione e' solo drone: il
+        // filtro serve solo a lasciare fuori le vecchie sessioni di misurazione.
         val done = sessions.filter { it.completed && !it.isCalibration }
         val out = mutableListOf<String>()
 
@@ -26,17 +28,17 @@ object Insights {
     /**
      * Il target non tira piu'.
      *
-     * Quando la mediana delle ultime sessioni ha raggiunto il target, quello non
-     * e' piu' un bersaglio ma il punto da cui parti: e' il momento di rimisurare.
+     * Quando la mediana delle ultime sessioni ha raggiunto la nota del drone,
+     * quella non e' piu' un bersaglio ma il punto da cui parti: conviene
+     * alzarla di un semitono.
      */
     private fun staleTarget(sessions: List<TrainingSession>, targetHz: Float): String? {
         val medians = sessions.take(3).mapNotNull { it.medianF0 }
         if (medians.size < 3) return null
         val recent = medians.average()
         if (recent < targetHz - 3.0) return null
-        return "La tua mediana e' ${recent.toInt()} Hz e il target del drone e' " +
-            "${targetHz.toInt()}: il target non ti tira piu'. " +
-            "Dalla schermata iniziale puoi chiedere di ricalibrare."
+        return "La tua mediana e' ${recent.toInt()} Hz e il drone sta a " +
+            "${targetHz.toInt()}: non ti tira piu'. Alzalo di un semitono."
     }
 
     /** Confronto fra le ultime 3 sessioni e le 3 precedenti: serve un minimo di storia. */

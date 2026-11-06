@@ -117,7 +117,7 @@ fun RecordingsScreen(onBack: () -> Unit) {
                 ) {
                     Column {
                         Text(
-                            text = session.dayKey + if (session.isCalibration) "  (calibrazione)" else "",
+                            text = session.dayKey,
                             style = MaterialTheme.typography.bodyLarge,
                             color = VV.Text,
                         )

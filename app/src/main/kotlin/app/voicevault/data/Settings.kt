@@ -4,9 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.math.pow
 
 /**
- * Preferenze locali. SharedPreferences e non DataStore: sono sei valori,
+ * Preferenze locali. SharedPreferences e non DataStore: sono tre valori,
  * letti anche dal thread audio, e l'asincronia qui non paga.
  */
 class Settings(context: Context) {
@@ -21,9 +22,6 @@ class Settings(context: Context) {
 
     private fun read() = SettingsState(
         targetHz = prefs.getFloat(KEY_TARGET_HZ, DEFAULT_TARGET_HZ),
-        calibrated = prefs.getBoolean(KEY_CALIBRATED, false),
-        recalibrateRequested = prefs.getBoolean(KEY_RECALIBRATE, false),
-        comfortableMaxHz = prefs.getFloat(KEY_COMFORT_MAX, 0f).takeIf { it > 0f },
         droneGain = prefs.getFloat(KEY_DRONE_GAIN, 0.25f),
         keepScreenOn = prefs.getBoolean(KEY_KEEP_SCREEN_ON, true),
     )
@@ -33,49 +31,38 @@ class Settings(context: Context) {
         _state.value = read()
     }
 
-    /**
-     * Esito della calibrazione: la zona comoda misurata nelle prime sessioni.
-     * Il target del drone si posa qui, invece di venire da una tabella.
-     */
-    fun saveCalibration(medianSpeechHz: Float, comfortableMaxHz: Float) = commit {
-        putFloat(KEY_TARGET_HZ, medianSpeechHz.coerceIn(120f, 260f))
-        putFloat(KEY_COMFORT_MAX, comfortableMaxHz)
-        putBoolean(KEY_CALIBRATED, true)
-        // La richiesta e' soddisfatta. Se la misurazione invece fallisse, questo
-        // metodo non viene chiamato e la richiesta resta in piedi per il giro dopo.
-        putBoolean(KEY_RECALIBRATE, false)
+    fun setTargetHz(hz: Float) = commit {
+        putFloat(KEY_TARGET_HZ, hz.coerceIn(MIN_TARGET_HZ, MAX_TARGET_HZ))
     }
 
     /**
-     * Chiede che la prossima sessione rimisuri la voce.
+     * Sposta il target di [semitones] semitoni e restituisce il valore nuovo.
      *
-     * Serve perche' la voce si muove: dopo qualche settimana il target misurato
-     * all'inizio diventa il punto di partenza invece del bersaglio.
+     * Il semitono e' l'unita' giusta: in auto conta fare pochi tocchi, e un
+     * passo in Hz sarebbe grosso in basso e minuscolo in alto.
      */
-    fun requestRecalibration(on: Boolean) = commit { putBoolean(KEY_RECALIBRATE, on) }
+    fun nudgeTarget(semitones: Int): Float {
+        val next = current.targetHz * 2f.pow(semitones / 12f)
+        setTargetHz(next)
+        return current.targetHz
+    }
 
-    // I setter manuali (target, volume del drone, schermo sempre acceso) arrivano
-    // con la schermata delle impostazioni, in Fase 3. Finora decide la calibrazione.
+    fun setDroneGain(gain: Float) = commit { putFloat(KEY_DRONE_GAIN, gain.coerceIn(0f, 0.6f)) }
 
-    private companion object {
-        const val KEY_TARGET_HZ = "target_hz"
-        const val KEY_CALIBRATED = "calibrated"
-        const val KEY_RECALIBRATE = "recalibrate_requested"
-        const val KEY_COMFORT_MAX = "comfortable_max_hz"
-        const val KEY_DRONE_GAIN = "drone_gain"
-        const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+    companion object {
+        private const val KEY_TARGET_HZ = "target_hz"
+        private const val KEY_DRONE_GAIN = "drone_gain"
+        private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
 
-        /** ~G3. Punto di partenza provvisorio, sostituito dalla calibrazione. */
+        /** ~G3: punto di partenza, da spostare a mano con i due pulsanti. */
         const val DEFAULT_TARGET_HZ = 196f
+        const val MIN_TARGET_HZ = 100f
+        const val MAX_TARGET_HZ = 320f
     }
 }
 
 data class SettingsState(
     val targetHz: Float,
-    val calibrated: Boolean,
-    /** La prossima sessione comincia con i 90 secondi di misurazione. */
-    val recalibrateRequested: Boolean,
-    val comfortableMaxHz: Float?,
     val droneGain: Float,
     val keepScreenOn: Boolean,
 )

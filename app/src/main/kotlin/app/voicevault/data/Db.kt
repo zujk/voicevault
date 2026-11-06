@@ -36,6 +36,12 @@ data class TrainingSession(
     @ColumnInfo(name = "completed") val completed: Boolean = false,
 )
 
+/**
+ * Tabella rimasta dai tempi della sessione a esercizi. Non ci si scrive piu',
+ * ma l'entita' resta dichiarata: toglierla cambierebbe lo schema e servirebbe
+ * una migrazione, cioe' rischiare i dati gia' registrati per ripulire una
+ * tabella vuota.
+ */
 @Entity(tableName = "segments")
 data class ExerciseSegment(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -64,9 +70,6 @@ interface SessionDao {
 
     @Update
     suspend fun update(session: TrainingSession)
-
-    @Insert
-    suspend fun insertSegment(segment: ExerciseSegment): Long
 
     @Query("SELECT * FROM sessions WHERE completed = 1 ORDER BY started_at DESC LIMIT :limit")
     fun recent(limit: Int): Flow<List<TrainingSession>>

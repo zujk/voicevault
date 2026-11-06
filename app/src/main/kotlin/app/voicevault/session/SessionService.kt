@@ -20,10 +20,7 @@ import app.voicevault.audio.AnalysisFrame
 import app.voicevault.audio.AudioCapture
 import app.voicevault.audio.DroneEngine
 import app.voicevault.audio.PitchLog
-import app.voicevault.data.ExerciseSegment
-import app.voicevault.data.Library
 import app.voicevault.data.RecordingStore
-import app.voicevault.data.Settings
 import app.voicevault.data.TrainingSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,41 +38,49 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Orchestratore della sessione: registra, analizza, suona il drone, parla,
- * e alla fine scrive il riassunto nel database.
+ * La sessione: drone, registrazione, cronometro. Niente altro.
+ *
+ * Prima qui c'era una macchina a stati con quattro esercizi, timer per
+ * esercizio, voce sintetica e clip della lezione. Erano cinque sorgenti audio in
+ * un orecchio solo, e ognuna doveva spegnerne un'altra con regole invisibili:
+ * quando qualcosa non si sentiva era impossibile capire se fosse rotto o
+ * zittito di proposito. Adesso il drone suona e basta, il materiale di studio si
+ * ascolta da fermi nella schermata Lezione, e quello che si fa con la voce lo
+ * decide chi guida.
  *
  * Gira come foreground service con tipo "microphone" perche' la sessione deve
- * continuare con lo schermo spento: in auto non si tiene il telefono sveglio
- * per dodici minuti senza motivo.
+ * continuare con lo schermo spento.
  */
 class SessionService : Service() {
 
     companion object {
         const val ACTION_START = "app.voicevault.START"
-        const val ACTION_NEXT = "app.voicevault.NEXT"
         const val ACTION_STOP = "app.voicevault.STOP"
+        const val ACTION_TARGET_UP = "app.voicevault.TARGET_UP"
+        const val ACTION_TARGET_DOWN = "app.voicevault.TARGET_DOWN"
 
         private const val NOTIFICATION_ID = 42
         private const val CHANNEL_ID = "session"
 
         /**
-         * Stato condiviso con la UI. Un StateFlow di processo invece del binding
-         * al service: l'app ha una sola Activity e questo evita un bel po' di
-         * cerimonia per nessun vantaggio.
+         * Limite di sicurezza: se la sessione resta aperta per sbaglio non
+         * registra l'intera giornata.
          */
+        private const val MAX_SESSION_MS = 20 * 60 * 1000L
+        private const val MIN_KEEP_MS = 60_000L
+        private const val SAMPLE_RATE = 44_100
+
         private val _state = MutableStateFlow(SessionUiState())
         val state: StateFlow<SessionUiState> = _state
 
-        fun start(context: Context) {
-            context.startForegroundService(Intent(context, SessionService::class.java).setAction(ACTION_START))
-        }
+        fun start(context: Context) = send(context, ACTION_START, foreground = true)
+        fun stop(context: Context) = send(context, ACTION_STOP)
+        fun targetUp(context: Context) = send(context, ACTION_TARGET_UP)
+        fun targetDown(context: Context) = send(context, ACTION_TARGET_DOWN)
 
-        fun next(context: Context) {
-            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_NEXT))
-        }
-
-        fun stop(context: Context) {
-            context.startService(Intent(context, SessionService::class.java).setAction(ACTION_STOP))
+        private fun send(context: Context, action: String, foreground: Boolean = false) {
+            val intent = Intent(context, SessionService::class.java).setAction(action)
+            if (foreground) context.startForegroundService(intent) else context.startService(intent)
         }
     }
 
@@ -88,16 +93,11 @@ class SessionService : Service() {
     private var writer: AacFileWriter? = null
     private var pitchLog: PitchLog? = null
     private var recordingTarget: RecordingStore.Target? = null
-    private var speaker: Speaker? = null
-    private var examples: ExamplePlayer? = null
     private var focusRequest: AudioFocusRequest? = null
 
-    private val skip = AtomicBoolean(false)
     private val stopping = AtomicBoolean(false)
-
     private val filter = MedianFilter5()
-    private val sessionMetrics = MetricAccumulator()
-    private val perExercise = LinkedHashMap<String, MetricAccumulator>()
+    private val metrics = MetricAccumulator()
 
     override fun onCreate() {
         super.onCreate()
@@ -110,16 +110,23 @@ class SessionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> if (sessionJob == null) startSession()
-            ACTION_NEXT -> skip.set(true)
-            ACTION_STOP -> stopSession()
+            ACTION_STOP -> stopping.set(true)
+            ACTION_TARGET_UP -> nudge(1)
+            ACTION_TARGET_DOWN -> nudge(-1)
         }
         return START_NOT_STICKY
     }
 
-    // ---------------------------------------------------------------- sessione
+    /** Sposta la nota del drone di un semitono, subito e in modo udibile. */
+    private fun nudge(semitones: Int) {
+        val settings = (application as VoiceVaultApp).settings
+        val next = settings.nudgeTarget(semitones)
+        drone?.setFrequency(next)
+        _state.value = _state.value.copy(targetHz = next)
+    }
 
     private fun startSession() {
-        startForeground(NOTIFICATION_ID, buildNotification("Sessione in corso"))
+        startForeground(NOTIFICATION_ID, buildNotification())
 
         sessionJob = scope.launch {
             try {
@@ -135,231 +142,93 @@ class SessionService : Service() {
     }
 
     private suspend fun runSession() {
-            val app = application as VoiceVaultApp
-            val dao = app.db.sessions()
-            val settings = app.settings
+        val app = application as VoiceVaultApp
+        val dao = app.db.sessions()
+        val settings = app.settings
+        val targetHz = settings.current.targetHz
 
-            // Finche' la voce non e' stata misurata, la misurazione sta in testa
-            // al programma normale invece di occupare una sessione intera.
-            val needsMeasurement =
-                !settings.current.calibrated || settings.current.recalibrateRequested
-            val program = Exercises.programFor(needsMeasurement)
-
-            // Non e' costante: appena la misurazione e' pronta, a meta' sessione,
-            // il target cambia e il drone lo segue per il resto del giro.
-            var targetHz = settings.current.targetHz
-            val startedAt = System.currentTimeMillis()
-            val dayKey = dayKeyFormat.format(Date(startedAt))
-
-            val sessionId = dao.insert(
-                TrainingSession(
-                    startedAt = startedAt,
-                    dayKey = dayKey,
-                    programId = program.id,
-                    isCalibration = program.isCalibration,
-                )
+        val startedAt = System.currentTimeMillis()
+        val sessionId = dao.insert(
+            TrainingSession(
+                startedAt = startedAt,
+                dayKey = dayKeyFormat.format(Date(startedAt)),
+                programId = PROGRAM_ID,
             )
+        )
 
-            val stem = "voicevault_${fileStampFormat.format(Date(startedAt))}"
-            val target = RecordingStore.create(this@SessionService, "$stem.m4a")
-            recordingTarget = target
-            val logFile = File(RecordingStore.fallbackDir(this@SessionService), "$stem.csv")
+        val stem = "voicevault_${fileStampFormat.format(Date(startedAt))}"
+        val target = RecordingStore.create(this, "$stem.m4a")
+        recordingTarget = target
+        val logFile = File(RecordingStore.fallbackDir(this), "$stem.csv")
 
-            val log = PitchLog(logFile)
-            val fileWriter = AacFileWriter(SAMPLE_RATE).apply {
-                val fd = target.descriptor?.fileDescriptor
-                if (fd != null) start(fd) else start(target.file!!)
-            }
-            val droneEngine = DroneEngine(audioManager)
-            val cap = AudioCapture(audioManager, SAMPLE_RATE, this@SessionService, ::onFrame).apply {
-                this.fileWriter = fileWriter
-                this.pitchLog = log
-            }
+        val log = PitchLog(logFile).also { it.setExercise(PROGRAM_ID) }
+        val fileWriter = AacFileWriter(SAMPLE_RATE).apply {
+            val fd = target.descriptor?.fileDescriptor
+            if (fd != null) start(fd) else start(target.file!!)
+        }
+        val droneEngine = DroneEngine(audioManager)
+        val cap = AudioCapture(audioManager, SAMPLE_RATE, this, ::onFrame).apply {
+            this.fileWriter = fileWriter
+            this.pitchLog = log
+        }
 
-            pitchLog = log
-            writer = fileWriter
-            drone = droneEngine
-            capture = cap
-            speaker = Speaker(this@SessionService)
-            examples = ExamplePlayer(this@SessionService)
+        pitchLog = log
+        writer = fileWriter
+        drone = droneEngine
+        capture = cap
 
-            requestAudioFocus()
-            droneEngine.start()
+        requestAudioFocus()
+        droneEngine.start()
+        droneEngine.setFrequency(targetHz)
+        droneEngine.setGain(settings.current.droneGain)
 
-            val started = cap.start()
-            if (!started) {
-                speaker?.say("Non riesco ad accedere al microfono. Sessione annullata.")
-                cleanup()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return
-            }
-
-            _state.value = SessionUiState(
-                running = true,
-                programTitle = program.title,
-                isCalibration = program.isCalibration,
-                exerciseCount = program.exercises.size,
-                targetHz = targetHz,
-                sessionRemainingSec = program.totalSec,
-            )
-
-            speaker?.say("${program.title}, ${program.totalSec / 60} minuti. Si parte.")
-
-            val sessionStartMs = System.currentTimeMillis()
-
-            for ((index, exercise) in program.exercises.withIndex()) {
-                if (stopping.get()) break
-
-                val acc = MetricAccumulator()
-                perExercise[exercise.id] = acc
-                currentAccumulator = acc
-                log.setExercise(exercise.id)
-                filter.reset()
-
-                val ratio = exercise.droneRatio
-                val droneGain = if (ratio == null) 0f else settings.current.droneGain
-                if (ratio != null) droneEngine.setFrequency(targetHz * ratio)
-                droneEngine.setGain(droneGain)
-
-                val segmentStart = System.currentTimeMillis() - sessionStartMs
-                _state.value = _state.value.copy(
-                    exerciseTitle = exercise.title,
-                    exerciseIndex = index,
-                    exerciseRemainingSec = exercise.durationSec,
-                )
-
-                val clipRes = exercise.exampleClipId?.let { Library.clip(it)?.res }
-                if (clipRes != null) {
-                    // Il drone tace durante l'esempio: l'esempio ha dentro le sue
-                    // note, e due altezze insieme non si capirebbero.
-                    droneEngine.setGain(0f)
-                    _state.value = _state.value.copy(examplePlaying = true)
-                    examples?.play(clipRes) {
-                        droneEngine.setGain(droneGain)
-                        _state.value = _state.value.copy(examplePlaying = false)
-                    }
-                } else {
-                    exercise.spoken?.let { speaker?.interruptWith(it) }
-                }
-
-                skip.set(false)
-                val exerciseStart = System.currentTimeMillis()
-                val endAt = exerciseStart + exercise.durationSec * 1000L
-
-                while (!stopping.get() && !skip.get() && System.currentTimeMillis() < endAt) {
-                    delay(200)
-                    val now = System.currentTimeMillis()
-                    val remaining = ((endAt - now) / 1000L).toInt().coerceAtLeast(0)
-                    val sessionElapsed = (now - sessionStartMs) / 1000L
-                    _state.value = _state.value.copy(
-                        exerciseRemainingSec = remaining,
-                        sessionRemainingSec = (program.totalSec - sessionElapsed).toInt().coerceAtLeast(0),
-                    )
-                }
-
-                // L'esempio non sopravvive all'esercizio, nemmeno se lo salti.
-                examples?.stop()
-                _state.value = _state.value.copy(examplePlaying = false)
-
-                val segmentEnd = System.currentTimeMillis() - sessionStartMs
-                val exerciseSummary = acc.summary(targetHz * (ratio ?: 1f))
-                dao.insertSegment(
-                    ExerciseSegment(
-                        sessionId = sessionId,
-                        exerciseId = exercise.id,
-                        position = index,
-                        startMs = segmentStart,
-                        endMs = segmentEnd,
-                        medianF0 = exerciseSummary?.medianF0,
-                        maxF0 = exerciseSummary?.maxF0,
-                        pctInTarget = exerciseSummary?.pctInTarget,
-                        tiltAvg = exerciseSummary?.tiltAvg,
-                    )
-                )
-
-                // Appena i due esercizi di misurazione sono passati si calibra,
-                // cosi' il drone usa il target nuovo per il resto della sessione
-                // invece di aspettare la fine e servire a nulla.
-                if (exercise.id == "cal_range") {
-                    applyCalibration(settings)
-                    targetHz = settings.current.targetHz
-                    _state.value = _state.value.copy(targetHz = targetHz)
-                }
-            }
-
-            currentAccumulator = null
-            droneEngine.setGain(0f)
-
-            val durationMs = System.currentTimeMillis() - sessionStartMs
-            val summary = sessionMetrics.summary(targetHz)
-
-            dao.update(
-                TrainingSession(
-                    id = sessionId,
-                    startedAt = startedAt,
-                    dayKey = dayKey,
-                    durationMs = durationMs,
-                    programId = program.id,
-                    isCalibration = program.isCalibration,
-                    medianF0 = summary?.medianF0,
-                    p10F0 = summary?.p10F0,
-                    p90F0 = summary?.p90F0,
-                    pctInTarget = summary?.pctInTarget,
-                    tiltAvg = summary?.tiltAvg,
-                    signalQuality = summary?.signalQuality,
-                    audioPath = target.reference,
-                    pitchLogPath = logFile.absolutePath,
-                    completed = durationMs > MIN_KEEP_MS,
-                )
-            )
-
-            if (!stopping.get()) {
-                speaker?.interruptWith("Sessione finita. Bel lavoro.")
-                delay(2500)
-            }
-
-            _state.value = SessionUiState(finishedSessionId = sessionId)
+        if (!cap.start()) {
             cleanup()
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
             stopSelf()
-    }
-
-    /**
-     * Calibrazione: il target del parlato viene dalla mediana misurata in
-     * "cal_speech", il tetto comodo dal novantesimo percentile di "cal_range".
-     */
-    private fun applyCalibration(settings: Settings) {
-        val speech = perExercise["cal_speech"]?.summary(settings.current.targetHz)
-        val range = perExercise["cal_range"]?.summary(settings.current.targetHz)
-        if (speech == null || speech.voicedFrames < 200) {
-            speaker?.say("Non ho abbastanza voce per calibrare: rifacciamo la misurazione la prossima volta.")
             return
         }
-        val previous = settings.current.targetHz
-        val wasCalibrated = settings.current.calibrated
-        // Target: a meta' strada fra la voce attuale e il tetto comodo, cosi' e'
-        // un passo raggiungibile e non un numero preso da una tabella.
-        val comfortableMax = range?.p90F0 ?: (speech.medianF0 * 1.3f)
-        val target = speech.medianF0 + (comfortableMax - speech.medianF0) * 0.45f
-        settings.saveCalibration(medianSpeechHz = target, comfortableMaxHz = comfortableMax)
-        if (wasCalibrated) {
-            val verso = if (target > previous) "salito" else "sceso"
-            speaker?.say(
-                "Ricalibrato: il target e' $verso da ${previous.toInt()} " +
-                    "a ${target.toInt()} hertz."
-            )
-        } else {
-            speaker?.say("Misurazione fatta. Partiamo da ${target.toInt()} hertz.")
+
+        _state.value = SessionUiState(running = true, targetHz = targetHz)
+
+        val sessionStart = System.currentTimeMillis()
+        while (!stopping.get()) {
+            delay(200)
+            val elapsed = System.currentTimeMillis() - sessionStart
+            if (elapsed > MAX_SESSION_MS) break
+            _state.value = _state.value.copy(elapsedSec = (elapsed / 1000L).toInt())
         }
+
+        val durationMs = System.currentTimeMillis() - sessionStart
+        val summary = metrics.summary(settings.current.targetHz)
+
+        dao.update(
+            TrainingSession(
+                id = sessionId,
+                startedAt = startedAt,
+                dayKey = dayKeyFormat.format(Date(startedAt)),
+                durationMs = durationMs,
+                programId = PROGRAM_ID,
+                medianF0 = summary?.medianF0,
+                p10F0 = summary?.p10F0,
+                p90F0 = summary?.p90F0,
+                pctInTarget = summary?.pctInTarget,
+                tiltAvg = summary?.tiltAvg,
+                signalQuality = summary?.signalQuality,
+                audioPath = target.reference,
+                pitchLogPath = logFile.absolutePath,
+                completed = durationMs > MIN_KEEP_MS,
+            )
+        )
+
+        _state.value = SessionUiState(finishedSessionId = sessionId)
+        cleanup()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
-    @Volatile private var currentAccumulator: MetricAccumulator? = null
-
     private fun onFrame(frame: AnalysisFrame) {
-        sessionMetrics.add(frame)
-        currentAccumulator?.add(frame)
-
+        metrics.add(frame)
         val p = frame.pitch
         val shownHz = if (p.voiced) filter.push(p.hz) else 0f
         val s = _state.value
@@ -371,17 +240,9 @@ class SessionService : Service() {
         )
     }
 
-    private fun stopSession() {
-        if (stopping.getAndSet(true)) return
-        examples?.stop()
-        speaker?.stopSpeaking()
-        skip.set(true)
-    }
-
     /**
      * Ordine obbligato: prima si aspetta che il thread di cattura sia finito,
-     * solo dopo si chiudono encoder e file. Al contrario si chiudeva un codec
-     * che il thread audio stava ancora usando.
+     * solo dopo si chiudono encoder e file.
      */
     private fun cleanup() {
         capture?.stop()
@@ -390,20 +251,14 @@ class SessionService : Service() {
         drone = null
         writer?.stop()
         writer = null
-        // Solo dopo che l'encoder ha chiuso il file lo si rende visibile.
         recordingTarget?.finish(this)
         recordingTarget = null
         pitchLog?.close()
         pitchLog = null
-        examples?.stop()
-        examples = null
-        speaker?.release()
-        speaker = null
         abandonAudioFocus()
         sessionJob = null
         stopping.set(false)
-        skip.set(false)
-        perExercise.clear()
+        filter.reset()
     }
 
     override fun onDestroy() {
@@ -411,8 +266,6 @@ class SessionService : Service() {
         scope.cancel()
         super.onDestroy()
     }
-
-    // ------------------------------------------------------------- audio focus
 
     /**
      * Focus in ducking per tutta la sessione: il drone e' continuo, quindi la
@@ -423,8 +276,8 @@ class SessionService : Service() {
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
             .setWillPauseWhenDucked(false)
@@ -438,8 +291,6 @@ class SessionService : Service() {
         focusRequest = null
     }
 
-    // ------------------------------------------------------------- notifica
-
     private fun createChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -449,7 +300,7 @@ class SessionService : Service() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    private fun buildNotification(text: String): Notification {
+    private fun buildNotification(): Notification {
         val open = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
@@ -462,12 +313,10 @@ class SessionService : Service() {
         )
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
-            .setContentText(text)
+            .setContentText("Drone e registrazione in corso")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(open)
-            .addAction(
-                Notification.Action.Builder(null, "Termina", stopIntent).build()
-            )
+            .addAction(Notification.Action.Builder(null, "Termina", stopIntent).build())
             .setOngoing(true)
             .build()
     }
@@ -476,5 +325,4 @@ class SessionService : Service() {
     private val fileStampFormat = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US)
 }
 
-private const val SAMPLE_RATE = 44_100
-private const val MIN_KEEP_MS = 60_000L
+private const val PROGRAM_ID = "drone"

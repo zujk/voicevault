@@ -27,30 +27,42 @@ Il microfono a pochi centimetri dalla bocca è la ragione per cui le metriche in
 auto stanno in piedi: l'app lo seleziona esplicitamente invece di affidarsi al
 routing automatico.
 
-## Cosa c'è in questa fase
+## Cosa c'è
 
-- registrazione in foreground service, AAC-LC mono in `.m4a`;
-- **drone di riferimento** con glide morbido, mono duplicato sui due canali;
+**Una sessione è: drone, registrazione, cronometro.** Niente altro.
+
+- **drone di riferimento** sulla tua nota, con glide morbido, mono duplicato sui
+  due canali. Due pulsanti enormi lo spostano di un semitono, in marcia o da fermi;
+- **registrazione** in foreground service, AAC-LC mono in `.m4a`, nella cartella
+  pubblica `Registrazioni/VoiceVault`;
 - **pitch detection YIN** con soglia di confidenza: i frame inaffidabili si
   scartano invece di produrre numeri inventati;
 - proxy del **peso vocale** (inclinazione spettrale, H1-H2) misurato e registrato;
-- sessione guidata dagli **esempi audio della lezione**, ritagliati e inclusi
-  nell'app: riscaldamento, hum e scivolata, pesante-pesante-leggero, carryover al
-  parlato. Mentre un esempio suona il drone tace. La voce sintetica resta solo
-  dove un esempio non c'è;
-- **calibrazione**: 90 secondi in testa alla prima sessione misurano la tua voce
-  (mediana del parlato e tetto comodo) e tarano il target del drone, invece di
-  prenderlo da una tabella. Il target entra in vigore subito, a metà sessione, e
-  si può chiedere una **ricalibrazione** quando la voce si è spostata;
-- schermata di guida landscape: tap in qualunque punto = avanti, pressione lunga
-  = stop. Nessun bersaglio piccolo;
-- calendario mensile con i pallini, striscia di giorni, minuti del mese;
-- insight da regole deterministiche, al massimo due per volta;
-- **registrazioni** elencate e riascoltabili, salvate nella cartella pubblica
-  `Registrazioni/VoiceVault`;
-- **diagnostica** per misurare i due rischi residui (compressione in ingresso
-  delle cuffie, qualità del pitch tracking in marcia) e per leggere l'ultimo
-  errore, dato che in auto non c'è un cavo per i log di sistema.
+- schermata di guida landscape: cronometro, Hz del drone, Hz della tua voce, e la
+  colonna del pitch colorata sul peso. Tre bersagli grandi: −, +, FINE;
+- **calendario** mensile con i pallini, striscia di giorni, minuti del mese;
+- **lezione** spacchettata in 13 clip raggruppate per tipo, da ascoltare da fermi;
+- **registrazioni** elencate e riascoltabili;
+- **insight** da regole deterministiche, al massimo due per volta;
+- **diagnostica** per i due rischi residui (compressione in ingresso delle cuffie,
+  qualità del pitch tracking in marcia) e per leggere l'ultimo errore, dato che in
+  auto non c'è un cavo per i log di sistema.
+
+### Cosa è stato tolto, e perché
+
+C'erano quattro esercizi con timer, una voce sintetica che li annunciava e le clip
+della lezione che partivano da sole. In un orecchio solo potevano esserci cinque
+sorgenti audio insieme — musica, drone, clip, voce sintetica, navigatore — e
+ognuna doveva spegnerne un'altra con regole invisibili: quando qualcosa non si
+sentiva era impossibile capire se fosse rotto o zittito di proposito. Più una
+macchina a stati da tenere a mente mentre si guida.
+
+Via tutto: il drone suona, l'app registra, e cosa fare con la voce lo decide chi
+guida. Il materiale di studio si ascolta da fermi, nella schermata Lezione.
+
+Con gli esercizi è sparita anche la calibrazione automatica: la nota del drone si
+sposta a mano di un semitono per volta, e un insight fa notare quando la tua
+mediana l'ha raggiunta.
 
 ## Privacy
 

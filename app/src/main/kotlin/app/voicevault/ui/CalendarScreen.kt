@@ -139,7 +139,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = s.dayKey + if (s.isCalibration) "  (calibrazione)" else "",
+                    text = s.dayKey,
                     style = MaterialTheme.typography.bodyMedium,
                     color = VV.Text,
                 )

@@ -1,34 +1,28 @@
-package app.voicevault.session
+package app.voicevault.audio
 
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
-import app.voicevault.audio.AudioDevices
 
 /**
- * Riproduce gli esempi audio della lezione.
+ * Riproduce le clip della lezione, nella schermata Lezione.
  *
- * Sostituiscono le istruzioni dette dalla voce sintetica: un esempio vero, con
- * la dimostrazione vocale dentro, insegna quello che una descrizione a parole
- * non riesce a dire.
+ * Non viene usato durante una sessione: la sessione e' solo drone e
+ * registrazione, e il materiale di studio si ascolta da fermi.
  *
- * Attributi e dispositivo di uscita sono dichiarati espliciti come per il drone,
- * invece di affidarsi a `MediaPlayer.create` e al routing di default: con le
- * cuffie USB collegate l'esempio deve finire nello stesso orecchio del drone.
+ * Attributi e dispositivo di uscita sono dichiarati espliciti, invece di
+ * affidarsi a `MediaPlayer.create` e al routing di default: con le cuffie USB
+ * collegate la clip deve finire nello stesso orecchio del drone.
  */
-class ExamplePlayer(private val context: Context) {
+class ClipPlayer(private val context: Context) {
 
     private var player: MediaPlayer? = null
 
     val isPlaying: Boolean
         get() = runCatching { player?.isPlaying == true }.getOrDefault(false)
 
-    /**
-     * Avvia l'esempio e ritorna subito: il conto alla rovescia dell'esercizio
-     * non si ferma ad aspettarlo. [onFinished] scatta quando l'esempio e'
-     * finito, ed e' li' che si riaccende il drone.
-     */
+    /** Avvia la clip e ritorna subito; [onFinished] scatta a fine riproduzione. */
     fun play(resId: Int, onFinished: () -> Unit) {
         stop()
         // Prima la via esplicita; se la risorsa non si apre come descrittore si

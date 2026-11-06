@@ -28,7 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.voicevault.data.ClipKind
 import app.voicevault.data.Library
-import app.voicevault.session.ExamplePlayer
+import app.voicevault.audio.ClipPlayer
 import app.voicevault.ui.theme.VV
 
 /**
@@ -40,7 +40,7 @@ import app.voicevault.ui.theme.VV
 @Composable
 fun LessonScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val player = remember { ExamplePlayer(context) }
+    val player = remember { ClipPlayer(context) }
     var playing by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(Unit) { onDispose { player.stop() } }

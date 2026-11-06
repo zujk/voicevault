@@ -3,8 +3,9 @@ package app.voicevault.ui
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.view.WindowManager
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,13 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.shape.RoundedCornerShape
 import app.voicevault.VoiceVaultApp
 import app.voicevault.session.SessionService
 import app.voicevault.session.SessionUiState
@@ -39,9 +40,9 @@ import kotlin.math.ln
 /**
  * La schermata che sta sul supporto allo specchietto.
  *
- * Regole: nessun bersaglio piccolo, nessun testo da leggere, nessuna animazione
- * rapida. Tap in qualunque punto = avanti, pressione lunga = stop. Tutto il
- * resto arriva dalla voce guida e dal drone.
+ * Tre informazioni e tre bersagli, tutti enormi. Niente da leggere, niente da
+ * ricordare: il drone suona sulla nota, i due pulsanti la spostano di un
+ * semitono, il terzo chiude la sessione.
  */
 @Composable
 fun SessionScreen(state: SessionUiState) {
@@ -63,75 +64,82 @@ fun SessionScreen(state: SessionUiState) {
         }
     }
 
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxSize()
             .background(VV.Background)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { SessionService.next(context) },
-                    onLongPress = { SessionService.stop(context) },
-                )
-            }
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (state.isCalibration) "CALIBRAZIONE" else state.programTitle.uppercase(),
-                    style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
-                    color = VV.TextDim,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = state.exerciseTitle,
-                    style = androidx.compose.material3.MaterialTheme.typography.displayMedium,
-                    color = VV.Text,
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = formatTime(state.exerciseRemainingSec),
-                    style = androidx.compose.material3.MaterialTheme.typography.displayLarge,
-                    color = VV.TextDim,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "esercizio ${state.exerciseIndex + 1} di ${state.exerciseCount}" +
-                        " · sessione ${formatTime(state.sessionRemainingSec)}",
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                    color = VV.TextDim,
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = if (state.examplePlaying) {
-                        "esempio in corso   ·   un tap lo interrompe e passa avanti"
-                    } else {
-                        "tap = avanti   ·   tieni premuto = stop"
-                    },
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                    color = if (state.examplePlaying) VV.Light else VV.Target,
-                )
-            }
-
-            Spacer(Modifier.width(16.dp))
-
-            PitchColumn(
-                state = state,
-                modifier = Modifier
-                    .width(86.dp)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(VV.Surface),
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = formatTime(state.elapsedSec),
+                style = MaterialTheme.typography.displayLarge,
+                color = VV.Text,
             )
+            Text(
+                text = "drone ${state.targetHz.toInt()} Hz" +
+                    if (state.voiced && state.currentHz > 0f) {
+                        "   ·   tu ${state.currentHz.toInt()} Hz"
+                    } else {
+                        ""
+                    },
+                style = MaterialTheme.typography.titleLarge,
+                color = VV.TextDim,
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                BigButton("−", VV.Text, Modifier.weight(1f)) { SessionService.targetDown(context) }
+                Spacer(Modifier.width(10.dp))
+                BigButton("+", VV.Text, Modifier.weight(1f)) { SessionService.targetUp(context) }
+                Spacer(Modifier.width(10.dp))
+                BigButton("FINE", VV.Heavy, Modifier.weight(1.4f)) { SessionService.stop(context) }
+            }
         }
+
+        Spacer(Modifier.width(16.dp))
+
+        PitchColumn(
+            state = state,
+            modifier = Modifier
+                .width(86.dp)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(24.dp))
+                .background(VV.Surface),
+        )
+    }
+}
+
+@Composable
+private fun BigButton(
+    label: String,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .height(96.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(VV.Surface)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.displayMedium,
+            color = color,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
 /**
  * La colonna del pitch: scala logaritmica, banda del target, e un blocco di
  * colore che sale e scende. Il colore viene dal peso: ambra = pesante,
- * verde-azzurro = leggera. Va letta con la visione periferica, non guardata.
+ * verde-azzurro = leggera. Va letta con la visione periferica.
  */
 @Composable
 private fun PitchColumn(state: SessionUiState, modifier: Modifier = Modifier) {
@@ -151,18 +159,17 @@ private fun PitchColumn(state: SessionUiState, modifier: Modifier = Modifier) {
         drawRect(
             color = VV.Target.copy(alpha = 0.35f),
             topLeft = Offset(0f, bandTop),
-            size = androidx.compose.ui.geometry.Size(w, bandBottom - bandTop),
+            size = Size(w, bandBottom - bandTop),
         )
 
         if (state.voiced && state.currentHz > 0f) {
             val y = yOf(state.currentHz)
             val weight = normalizedWeight(state.tiltDb)
-            val color = lerp(VV.Light, VV.Heavy, weight)
             val blockHeight = 26f
             drawRect(
-                color = color,
+                color = lerp(VV.Light, VV.Heavy, weight),
                 topLeft = Offset(0f, (y - blockHeight / 2).coerceIn(0f, h - blockHeight)),
-                size = androidx.compose.ui.geometry.Size(w, blockHeight),
+                size = Size(w, blockHeight),
             )
         }
     }
@@ -171,8 +178,7 @@ private fun PitchColumn(state: SessionUiState, modifier: Modifier = Modifier) {
 /**
  * Normalizzazione provvisoria del tilt in 0..1.
  *
- * Volutamente grezza: la normalizzazione vera arriva con la calibrazione del
- * peso in Fase 2. Qui serve solo a far muovere un colore, e non viene salvata
+ * Volutamente grezza: serve solo a far muovere un colore, e non viene salvata
  * da nessuna parte ne' mostrata come numero.
  */
 private fun normalizedWeight(tiltDb: Float?): Float {
@@ -180,11 +186,7 @@ private fun normalizedWeight(tiltDb: Float?): Float {
     return ((tiltDb - 6f) / 18f).coerceIn(0f, 1f)
 }
 
-private fun formatTime(seconds: Int): String {
-    val m = seconds / 60
-    val s = seconds % 60
-    return "%d:%02d".format(m, s)
-}
+private fun formatTime(seconds: Int): String = "%d:%02d".format(seconds / 60, seconds % 60)
 
 private const val MIN_HZ = 90f
 private const val MAX_HZ = 400f
