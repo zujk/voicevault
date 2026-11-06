@@ -29,6 +29,33 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
+      # Gli esempi audio sono stati spediti una volta completamente muti: il
+      # file era valido e della dimensione giusta, ma ogni campione era a
+      # -91 dB. Qui si misura ogni clip e si rifiuta la build se e' silenzio.
+      - name: Gli esempi audio non devono essere muti
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg > /dev/null
+          fail=0
+          for f in app/src/main/res/raw/*.mp3; do
+            mean=$(ffmpeg -v info -i "$f" -af volumedetect -f null - 2>&1 \
+              | sed -n 's/.*mean_volume: \(-*[0-9.]*\) dB.*/\1/p' | head -1)
+            if [ -z "$mean" ]; then
+              echo "::error file=$f::impossibile misurare il volume"
+              fail=1
+              continue
+            fi
+            ok=$(python3 -c "print(1 if float('$mean') > -60 else 0)")
+            if [ "$ok" = "1" ]; then
+              echo "ok   $f  ($mean dB)"
+            else
+              echo "::error file=$f::clip muta o quasi ($mean dB)"
+              fail=1
+            fi
+          done
+          exit $fail
+
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
 
