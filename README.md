@@ -34,16 +34,21 @@ routing automatico.
 - **pitch detection YIN** con soglia di confidenza: i frame inaffidabili si
   scartano invece di produrre numeri inventati;
 - proxy del **peso vocale** (inclinazione spettrale, H1-H2) misurato e registrato;
-- sessione guidata via TTS italiano: riscaldamento, hum e scivolata,
-  pesante-pesante-leggero, carryover al parlato;
+- sessione guidata dagli **esempi audio della lezione**, ritagliati e inclusi
+  nell'app: riscaldamento, hum e scivolata, pesante-pesante-leggero, carryover al
+  parlato. Mentre un esempio suona il drone tace. La voce sintetica resta solo
+  dove un esempio non c'è;
 - **calibrazione**: le prime due sessioni misurano la tua voce e tarano il target,
   invece di prenderlo da una tabella;
 - schermata di guida landscape: tap in qualunque punto = avanti, pressione lunga
   = stop. Nessun bersaglio piccolo;
 - calendario mensile con i pallini, striscia di giorni, minuti del mese;
 - insight da regole deterministiche, al massimo due per volta;
-- **diagnostica** per misurare i due rischi residui: compressione in ingresso
-  delle cuffie e qualità del pitch tracking in marcia.
+- **registrazioni** elencate e riascoltabili, salvate nella cartella pubblica
+  `Registrazioni/VoiceVault`;
+- **diagnostica** per misurare i due rischi residui (compressione in ingresso
+  delle cuffie, qualità del pitch tracking in marcia) e per leggere l'ultimo
+  errore, dato che in auto non c'è un cavo per i log di sistema.
 
 ## Privacy
 

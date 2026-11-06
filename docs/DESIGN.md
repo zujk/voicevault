@@ -3,7 +3,7 @@
 App Android per voice training MTF femminilizzante durante il commute in auto.
 Documento di studio: **nessun codice scritto**, da validare prima dell'implementazione.
 
-> Rev. 6 — Fase 1 implementata. Due scostamenti tecnici annotati in §8 e §7.
+> Rev. 7 — la guida parlata diventa l'audio della lezione, non piu' voce sintetica.
 
 ---
 
@@ -153,17 +153,31 @@ Una riga di codice, da provare quando serve.
 
 ## 6. Gli esercizi (dal materiale TransVoiceLessons)
 
-Ogni esercizio è un blocco dati (nome, durata, prompt vocale, tipo di feedback,
+Ogni esercizio è un blocco dati (nome, durata, esempio audio, tipo di feedback,
 metrica da loggare). Il programma è generato, non hardcoded in una schermata.
+
+**Le istruzioni arrivano dall'audio della lezione, non da una voce sintetica.**
+Dal file completo della lezione sono ritagliati quattro esempi, agganciati ai
+silenzi per non partire a metà parola: hum e scivolata (78 s), pesante-pesante-
+leggero (80 s), esplorazione del limite (65 s), carryover al parlato (47 s).
+Un esempio vero, con la dimostrazione vocale dentro, insegna quello che una
+descrizione a parole non riesce a dire. **Mentre un esempio suona il drone tace**:
+l'esempio ha dentro le sue note e due altezze insieme non si capirebbero.
+
+La voce sintetica resta solo dove un esempio non c'è: riscaldamento, la richiesta
+di parlare normale in calibrazione, l'apertura e la chiusura della sessione, e gli
+errori. I file audio stanno dentro l'app, quindi la guida funziona senza rete come
+tutto il resto; sono materiale di terzi tenuto per uso personale, non da
+redistribuire.
 
 | # | Esercizio | Durata | Feedback |
 |---|---|---|---|
 | 0 | Riscaldamento: hum rilassato, respiro | 2 min | drone, nessuna metrica |
-| 1 | **Hum & slide** pesante basso → leggero alto | 3 min | drone + sonificazione peso |
-| 2 | **Heavy-heavy-light**: due colpi pesanti in salita, terzo alto e leggero | 3 min | tick sul terzo colpo se leggero |
-| 3 | **Esplorazione del limite** (ex pitch tracker): sali fino al "blocco", rilassa, supera, riscendi leggera | 3 min | drone mobile che ti accompagna |
-| 4 | **Vocal fry → pesante → leggero** (bonus) | 2 min | sonificazione peso |
-| 5 | **Carryover al parlato**: conta 1-2-3-4, poi frasi semplici | 2 min | pitch medio + % tempo in target |
+| 1 | **Hum & slide** pesante basso → leggero alto | 3 min | esempio audio, poi drone |
+| 2 | **Heavy-heavy-light**: due colpi pesanti in salita, terzo alto e leggero | 3 min | esempio audio, poi drone alla quinta |
+| 3 | **Esplorazione del limite** (ex pitch tracker): sali fino al "blocco", rilassa, supera, riscendi leggera | 2,5 min | esempio audio (usato in calibrazione) |
+| 4 | **Vocal fry → pesante → leggero** (bonus) | 2 min | Fase 2 |
+| 5 | **Carryover al parlato**: conta 1-2-3-4, poi frasi semplici | 2,5 min | esempio audio + metriche |
 
 Totale **12-13 min**, dentro i 15 di guida con margine per traffico e semafori. Due
 programmi alternati (A: 1-2-5, B: 3-4-5) così le due sessioni del giorno non sono

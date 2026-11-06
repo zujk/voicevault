@@ -88,6 +88,7 @@ class SessionService : Service() {
     private var pitchLog: PitchLog? = null
     private var recordingTarget: RecordingStore.Target? = null
     private var speaker: Speaker? = null
+    private var examples: ExamplePlayer? = null
     private var focusRequest: AudioFocusRequest? = null
 
     private val skip = AtomicBoolean(false)
@@ -181,6 +182,7 @@ class SessionService : Service() {
             drone = droneEngine
             capture = cap
             speaker = Speaker(this@SessionService)
+            examples = ExamplePlayer(this@SessionService)
 
             requestAudioFocus()
             droneEngine.start()
@@ -221,12 +223,9 @@ class SessionService : Service() {
                 filter.reset()
 
                 val ratio = exercise.droneRatio
-                if (ratio == null) {
-                    droneEngine.setGain(0f)
-                } else {
-                    droneEngine.setFrequency(targetHz * ratio)
-                    droneEngine.setGain(settings.current.droneGain)
-                }
+                val droneGain = if (ratio == null) 0f else settings.current.droneGain
+                if (ratio != null) droneEngine.setFrequency(targetHz * ratio)
+                droneEngine.setGain(droneGain)
 
                 val segmentStart = System.currentTimeMillis() - sessionStartMs
                 _state.value = _state.value.copy(
@@ -234,10 +233,17 @@ class SessionService : Service() {
                     exerciseIndex = index,
                     exerciseRemainingSec = exercise.durationSec,
                 )
-                speaker?.interruptWith(exercise.intro)
+
+                if (exercise.exampleRes != null) {
+                    // Il drone tace durante l'esempio: l'esempio ha dentro le sue
+                    // note, e due altezze insieme non si capirebbero.
+                    droneEngine.setGain(0f)
+                    examples?.play(exercise.exampleRes) { droneEngine.setGain(droneGain) }
+                } else {
+                    exercise.spoken?.let { speaker?.interruptWith(it) }
+                }
 
                 skip.set(false)
-                val pending = exercise.cues.sortedBy { it.atSec }.toMutableList()
                 val exerciseStart = System.currentTimeMillis()
                 val endAt = exerciseStart + exercise.durationSec * 1000L
 
@@ -250,11 +256,10 @@ class SessionService : Service() {
                         exerciseRemainingSec = remaining,
                         sessionRemainingSec = (program.totalSec - sessionElapsed).toInt().coerceAtLeast(0),
                     )
-                    val sinceStart = ((now - exerciseStart) / 1000L).toInt()
-                    while (pending.isNotEmpty() && pending.first().atSec <= sinceStart) {
-                        speaker?.say(pending.removeAt(0).text)
-                    }
                 }
+
+                // L'esempio non sopravvive all'esercizio, nemmeno se lo salti.
+                examples?.stop()
 
                 val segmentEnd = System.currentTimeMillis() - sessionStartMs
                 val exerciseSummary = acc.summary(targetHz * (ratio ?: 1f))
@@ -352,6 +357,7 @@ class SessionService : Service() {
 
     private fun stopSession() {
         if (stopping.getAndSet(true)) return
+        examples?.stop()
         speaker?.stopSpeaking()
         skip.set(true)
     }
@@ -373,6 +379,8 @@ class SessionService : Service() {
         recordingTarget = null
         pitchLog?.close()
         pitchLog = null
+        examples?.stop()
+        examples = null
         speaker?.release()
         speaker = null
         abandonAudioFocus()
