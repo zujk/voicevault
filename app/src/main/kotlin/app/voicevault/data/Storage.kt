@@ -34,10 +34,12 @@ object RecordingStore {
         /** Chiude il file e, su MediaStore, lo rende visibile alle altre app. */
         fun finish(context: Context) {
             runCatching { descriptor?.close() }
-            if (uri == null) return
+            // Copia locale: dentro un lambda Kotlin non propaga lo smart cast
+            // di una proprieta' di classe.
+            val target = uri ?: return
             runCatching {
                 context.contentResolver.update(
-                    uri,
+                    target,
                     ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) },
                     null,
                     null,
